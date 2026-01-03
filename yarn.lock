@@ -1191,6 +1191,11 @@
     estree-walker "^2.0.2"
     picomatch "^4.0.2"
 
+"@rollup/rollup-linux-x64-gnu@4.6.1":
+  version "4.6.1"
+  resolved "https://registry.yarnpkg.com/@rollup/rollup-linux-x64-gnu/-/rollup-linux-x64-gnu-4.6.1.tgz#f07bae3f7dc532d9ea5ab36c9071db329f9a1efb"
+  integrity sha512-DNGZvZDO5YF7jN5fX8ZqmGLjZEXIJRdJEdTFMhiyXqyXubBa0WVLDWSNlQ5JR2PNgDbEV1VQowhVRUh+74D+RA==
+
 "@supabase/auth-js@2.89.0":
   version "2.89.0"
   resolved "https://registry.yarnpkg.com/@supabase/auth-js/-/auth-js-2.89.0.tgz#0f38704b14f60f71c7c5591c8c2b1eb3c704123c"
