@@ -3,7 +3,7 @@ import react from '@vitejs/plugin-react';
 import { VitePWA } from 'vite-plugin-pwa';
 
 export default defineConfig({
-  base: '/Alzol/',
+  base: '/Alzol/', // هذا السطر هو الأهم لحل مشكلة الشاشة البيضاء
   plugins: [
     react(),
     VitePWA({
@@ -17,8 +17,8 @@ export default defineConfig({
         background_color: '#FFF9C4',
         display: 'standalone',
         orientation: 'portrait',
-        scope: '/Alzol/',
-        start_url: '/Alzol/',
+        scope: '/Alzol/',      // تحديث النطاق ليطابق المسار الجديد
+        start_url: '/Alzol/',  // تحديث رابط البدء
         icons: [
           {
             src: 'https://cdn-icons-png.flaticon.com/512/4140/4140048.png',
@@ -34,7 +34,6 @@ export default defineConfig({
       }
     })
   ],
-  
   optimizeDeps: {
     exclude: ['lucide-react'],
   },
