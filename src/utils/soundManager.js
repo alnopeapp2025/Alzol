@@ -12,7 +12,7 @@ export const playSound = (type) => {
       // تشغيل الملف الصوتي المخصص sound1.wav من مجلد public
       // المسار /sound1.wav يشير مباشرة إلى الملف الذي قمت برفعه في public
       const audio = new Audio('/sound1.wav');
-      audio.volume = 15.6; // مستوى صوت مناسب
+      audio.volume = 1.0; // مستوى صوت مناسب
       audio.play().catch(e => {
         // تجاهل الأخطاء إذا لم يكن الملف قد حمل بالكامل بعد أو قيود المتصفح
         console.warn("Audio play failed or file not found:", e);
