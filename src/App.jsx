@@ -10,10 +10,10 @@ import { ExpensesScreen } from './screens/ExpensesScreen';
 import { SalesScreen } from './screens/SalesScreen';
 import { InventoryReportsScreen } from './screens/InventoryReportsScreen';
 import { CalculatorModal } from './components/CalculatorModal';
-import { AuthModal } from './components/AuthModal'; // Updated Import
-import { PrivacyPolicyScreen } from './screens/PrivacyPolicyScreen'; // New
-import { SystemDataScreen } from './screens/SystemDataScreen'; // New
-import { SettingsScreen } from './screens/SettingsScreen'; // New
+import { AuthModal } from './components/AuthModal';
+import { PrivacyPolicyScreen } from './screens/PrivacyPolicyScreen';
+import { SystemDataScreen } from './screens/SystemDataScreen';
+import { SettingsScreen } from './screens/SettingsScreen';
 import { playSound } from './utils/soundManager';
 
 function App() {
@@ -25,7 +25,9 @@ function App() {
   const allItems = [...screen1Data, ...screen2Data];
 
   const handleCardClick = (title) => {
+    // تشغيل الصوت المخصص عند النقر على أي كرت في القائمة الرئيسية
     playSound('click');
+    
     if (title === 'الأصناف') {
       setCurrentScreen('add-category');
     } else if (title === 'المنتجات') {
@@ -48,7 +50,7 @@ function App() {
   };
 
   const handleNavigation = (screen) => {
-    playSound('click');
+    // playSound removed here to avoid duplication with SideMenu click
     setCurrentScreen(screen);
   };
 

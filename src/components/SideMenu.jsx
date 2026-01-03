@@ -4,6 +4,7 @@ import {
   Save, RotateCcw, Trash2, Settings, 
   Info, Star, Share2, Lock, Phone, X, LogIn 
 } from 'lucide-react';
+import { playSound } from '../utils/soundManager';
 
 export const SideMenu = ({ isOpen, onClose, onOpenRegistration, onNavigate }) => {
   const menuGroups = [
@@ -110,7 +111,10 @@ export const SideMenu = ({ isOpen, onClose, onOpenRegistration, onNavigate }) =>
                     {group.items.map((item, itemIdx) => (
                       <button 
                         key={itemIdx}
-                        onClick={item.action}
+                        onClick={() => {
+                          playSound('click'); // تشغيل الصوت عند النقر على عنصر القائمة
+                          item.action && item.action();
+                        }}
                         className="flex items-center gap-3 p-3 hover:bg-gray-50 rounded-xl transition-colors text-right w-full group active:bg-gray-100"
                       >
                         <div 

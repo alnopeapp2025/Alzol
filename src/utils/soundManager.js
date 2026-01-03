@@ -1,5 +1,6 @@
 // Utility to manage sounds based on settings
 export const playSound = (type) => {
+  // جلب الإعدادات المحفوظة أو استخدام الافتراضي
   const settings = JSON.parse(localStorage.getItem('appSettings')) || { barcodeSound: true, clickSound: true };
   
   // التحقق من إعدادات المستخدم قبل التشغيل
@@ -9,10 +10,11 @@ export const playSound = (type) => {
   try {
     if (type === 'click') {
       // تشغيل الملف الصوتي المخصص sound1.wav من مجلد public
+      // المسار /sound1.wav يشير مباشرة إلى الملف الذي قمت برفعه في public
       const audio = new Audio('/sound1.wav');
-      audio.volume = 0.5; // مستوى الصوت (0.0 إلى 1.0)
+      audio.volume = 0.6; // مستوى صوت مناسب
       audio.play().catch(e => {
-        // تجاهل الأخطاء إذا لم يكن الملف موجوداً أو منع المتصفح التشغيل التلقائي
+        // تجاهل الأخطاء إذا لم يكن الملف قد حمل بالكامل بعد أو قيود المتصفح
         console.warn("Audio play failed or file not found:", e);
       });
     } else if (type === 'barcode') {

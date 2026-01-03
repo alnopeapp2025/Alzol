@@ -7,8 +7,13 @@ export const TopBar = ({ onOpenRegistration, onNavigate }) => {
   const [isMenuOpen, setIsMenuOpen] = useState(false);
 
   const handleMenuClick = () => {
-    playSound('click');
+    playSound('click'); // تشغيل الصوت عند فتح القائمة الجانبية
     setIsMenuOpen(true);
+  };
+
+  const handleShareClick = () => {
+    playSound('click'); // تشغيل الصوت عند ضغط زر المشاركة
+    // منطق المشاركة المستقبلي
   };
 
   return (
@@ -29,7 +34,10 @@ export const TopBar = ({ onOpenRegistration, onNavigate }) => {
 
         {/* Right Side - Share (Visually Left in RTL) */}
         <div className="flex items-center gap-2">
-          <button className="p-2 hover:bg-[#005c4b] rounded-xl transition-colors active:scale-95">
+          <button 
+            onClick={handleShareClick}
+            className="p-2 hover:bg-[#005c4b] rounded-xl transition-colors active:scale-95"
+          >
             <Share2 size={24} strokeWidth={2} />
           </button>
         </div>
