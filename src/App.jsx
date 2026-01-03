@@ -1,4 +1,4 @@
-import React, { useState } from 'react';
+import React, { useState, useEffect } from 'react';
 import { TopBar } from './components/TopBar';
 import { BottomBar } from './components/BottomBar';
 import { DashboardCard } from './components/DashboardCard';
@@ -14,18 +14,52 @@ import { AuthModal } from './components/AuthModal';
 import { PrivacyPolicyScreen } from './screens/PrivacyPolicyScreen';
 import { SystemDataScreen } from './screens/SystemDataScreen';
 import { SettingsScreen } from './screens/SettingsScreen';
+import { EditProfileScreen } from './screens/EditProfileScreen';
+import { WorkersScreen } from './screens/WorkersScreen'; // Import Workers Screen
+import { ProModal } from './components/ProModal';
 import { playSound } from './utils/soundManager';
 
 function App() {
   const [currentScreen, setCurrentScreen] = useState('dashboard');
   const [isCalculatorOpen, setIsCalculatorOpen] = useState(false);
   const [isAuthOpen, setIsAuthOpen] = useState(false);
+  const [authTriggerMessage, setAuthTriggerMessage] = useState('');
+  const [isProOpen, setIsProOpen] = useState(false);
+  const [currentUser, setCurrentUser] = useState(null);
 
-  // Combine all items into a single list
+  useEffect(() => {
+    const savedUser = localStorage.getItem('app_user');
+    if (savedUser) {
+      setCurrentUser(JSON.parse(savedUser));
+    }
+  }, []);
+
+  const handleLogin = (user) => {
+    setCurrentUser(user);
+    localStorage.setItem('app_user', JSON.stringify(user));
+    setIsAuthOpen(false);
+    setAuthTriggerMessage('');
+  };
+
+  const handleLogout = () => {
+    setCurrentUser(null);
+    localStorage.removeItem('app_user');
+    setCurrentScreen('dashboard');
+  };
+
+  const handleOpenRegistration = (message = '') => {
+    setAuthTriggerMessage(message);
+    setIsAuthOpen(true);
+  };
+
+  const handleUpdateUser = (updatedUser) => {
+    setCurrentUser(updatedUser);
+    localStorage.setItem('app_user', JSON.stringify(updatedUser));
+  };
+
   const allItems = [...screen1Data, ...screen2Data];
 
   const handleCardClick = (title) => {
-    // تشغيل الصوت المخصص عند النقر على أي كرت في القائمة الرئيسية
     playSound('click');
     
     if (title === 'الأصناف') {
@@ -42,21 +76,21 @@ function App() {
       setCurrentScreen('inventory-reports');
     } else if (title === 'الآلة الحاسبة') {
       setIsCalculatorOpen(true);
-    } else if (title === 'الضبط') {
+    } else if (title === 'الضبط') { // Restored Settings
       setCurrentScreen('settings');
+    } else if (title === 'العمال والرواتب') { // New Workers Screen
+      setCurrentScreen('workers');
     } else {
       console.log(`Clicked ${title}`);
     }
   };
 
   const handleNavigation = (screen) => {
-    // playSound removed here to avoid duplication with SideMenu click
     setCurrentScreen(screen);
   };
 
-  // Screen Routing
-  if (currentScreen === 'add-category') return <AddCategoryScreen onBack={() => setCurrentScreen('dashboard')} />;
-  if (currentScreen === 'add-product') return <AddProductScreen onBack={() => setCurrentScreen('dashboard')} />;
+  if (currentScreen === 'add-category') return <AddCategoryScreen onBack={() => setCurrentScreen('dashboard')} currentUser={currentUser} onOpenRegistration={handleOpenRegistration} />;
+  if (currentScreen === 'add-product') return <AddProductScreen onBack={() => setCurrentScreen('dashboard')} currentUser={currentUser} onOpenRegistration={handleOpenRegistration} onOpenPro={() => setIsProOpen(true)} />;
   if (currentScreen === 'treasury') return <TreasuryScreen onBack={() => setCurrentScreen('dashboard')} />;
   if (currentScreen === 'expenses') return <ExpensesScreen onBack={() => setCurrentScreen('dashboard')} />;
   if (currentScreen === 'sales') return <SalesScreen onBack={() => setCurrentScreen('dashboard')} />;
@@ -64,6 +98,8 @@ function App() {
   if (currentScreen === 'privacy-policy') return <PrivacyPolicyScreen onBack={() => setCurrentScreen('dashboard')} />;
   if (currentScreen === 'system-data') return <SystemDataScreen onBack={() => setCurrentScreen('dashboard')} />;
   if (currentScreen === 'settings') return <SettingsScreen onBack={() => setCurrentScreen('dashboard')} />;
+  if (currentScreen === 'edit-profile') return <EditProfileScreen onBack={() => setCurrentScreen('dashboard')} currentUser={currentUser} onUpdateUser={handleUpdateUser} />;
+  if (currentScreen === 'workers') return <WorkersScreen onBack={() => setCurrentScreen('dashboard')} />;
 
   return (
     <div className="min-h-screen bg-[#FFF9C4] flex flex-col font-sans">
@@ -75,11 +111,26 @@ function App() {
       <AuthModal
         isOpen={isAuthOpen}
         onClose={() => setIsAuthOpen(false)}
+        onLogin={handleLogin}
+        triggerMessage={authTriggerMessage}
+      />
+
+      <ProModal
+        isOpen={isProOpen}
+        onClose={() => setIsProOpen(false)}
+        currentUser={currentUser}
+        onUpgradeSuccess={() => {
+          const updated = {...currentUser, is_pro: true};
+          handleUpdateUser(updated);
+        }}
       />
 
       <TopBar 
-        onOpenRegistration={() => setIsAuthOpen(true)} 
+        onOpenRegistration={() => handleOpenRegistration()} 
         onNavigate={handleNavigation}
+        currentUser={currentUser}
+        onLogout={handleLogout}
+        onOpenPro={() => setIsProOpen(true)}
       />
 
       <main className="flex-1 w-full max-w-md mx-auto py-6 px-4 pb-20">

@@ -1,5 +1,5 @@
 import React, { useState, useEffect } from 'react';
-import { ArrowRight, Volume2, VolumeX, Globe, Check } from 'lucide-react';
+import { ArrowRight, Volume2, VolumeX, Globe } from 'lucide-react';
 import { playSound } from '../utils/soundManager';
 
 export const SettingsScreen = ({ onBack }) => {
@@ -49,7 +49,7 @@ export const SettingsScreen = ({ onBack }) => {
 
   return (
     <div className="h-screen flex flex-col bg-[#FFF9C4] overflow-hidden font-sans">
-      {/* Header */}
+      {/* Header - Reverted Title */}
       <div className="bg-[#00695c] text-white h-16 flex items-center px-4 shadow-lg shrink-0 rounded-b-2xl z-10">
         <button onClick={onBack} className="p-2 hover:bg-[#005c4b] rounded-xl transition-colors active:scale-95">
           <ArrowRight size={24} strokeWidth={2.5} />

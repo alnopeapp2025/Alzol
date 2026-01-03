@@ -10,7 +10,8 @@ import {
   ClipboardList, 
   FileText, 
   Settings, 
-  Calculator 
+  Calculator,
+  HardHat // Icon for Workers
 } from 'lucide-react';
 
 // Screen 1 Data
@@ -26,9 +27,10 @@ export const screen1Data = [
 // Screen 2 Data
 export const screen2Data = [
   { id: 7, title: 'العملاء', icon: Users, color: '#c2185b' }, // Pink
-  { id: 8, title: 'تجار الجملة', icon: Truck, color: '#0097a7' }, // Cyan (Renamed from Suppliers)
+  { id: 8, title: 'تجار الجملة', icon: Truck, color: '#0097a7' }, // Cyan
   { id: 9, title: 'التقارير النهائية', icon: FileText, color: '#616161' }, // Grey
   { id: 10, title: 'تقارير المخزن', icon: ClipboardList, color: '#7b1fa2' }, // Purple
   { id: 11, title: 'الآلة الحاسبة', icon: Calculator, color: '#0277bd' }, // Blue
-  { id: 12, title: 'الضبط', icon: Settings, color: '#1565c0' }, // Dark Blue
+  { id: 12, title: 'الضبط', icon: Settings, color: '#455a64' }, // Reverted to Settings (Grey/Blue)
+  { id: 13, title: 'العمال والرواتب', icon: HardHat, color: '#e65100' }, // New Button (Orange/Dark)
 ];

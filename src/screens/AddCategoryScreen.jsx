@@ -20,10 +20,8 @@ export const AddCategoryScreen = ({ onBack }) => {
   }, []);
 
   const fetchCategories = async () => {
-    const { data } = await supabase
-      .from('categories')
-      .select('*')
-      .order('created_at', { ascending: false });
+    // جلب الأصناف بدون فلترة معقدة لتجنب الأخطاء
+    const { data } = await supabase.from('categories').select('*').order('created_at', { ascending: false });
     if (data) setCategories(data);
   };
 
@@ -36,13 +34,20 @@ export const AddCategoryScreen = ({ onBack }) => {
     if (!inputValue.trim()) return;
 
     setLoading(true);
+    
+    // تم إزالة user_id لتفادي خطأ PGRST204 وجعل الإضافة بسيطة ومباشرة
+    const payload = { 
+      name: inputValue
+    };
+
     const { data, error } = await supabase
       .from('categories')
-      .insert([{ name: inputValue }])
+      .insert([payload])
       .select();
 
     if (error) {
       console.error('Error adding category:', error);
+      alert('حدث خطأ أثناء الإضافة: ' + error.message);
     } else if (data) {
       showToast('تمت إضافة الصنف بنجاح');
       setCategories([data[0], ...categories]);
@@ -82,7 +87,7 @@ export const AddCategoryScreen = ({ onBack }) => {
   };
 
   return (
-    <div className="h-screen flex flex-col bg-[#FFF9C4] overflow-hidden relative">
+    <div className="h-screen flex flex-col bg-[#FFF9C4] overflow-hidden relative font-sans">
       <Toast 
         message={toast.message} 
         isVisible={toast.show} 
@@ -118,24 +123,26 @@ export const AddCategoryScreen = ({ onBack }) => {
 
       {/* Content */}
       <div className="flex-1 flex flex-col p-4 overflow-hidden">
-        <form onSubmit={handleAdd} className="mb-6 shrink-0">
-          <div className="relative">
+        <form onSubmit={handleAdd} className="mb-6 shrink-0 flex flex-col gap-3">
+          <div>
+            <label className="block text-[#00695c] text-xs font-bold mb-1 text-right px-1">اسم الصنف</label>
             <input
               type="text"
               value={inputValue}
               onChange={(e) => setInputValue(e.target.value)}
               placeholder="اكتب اسم الصنف هنا..."
-              className="w-full h-14 pr-4 pl-14 rounded-xl border-2 border-[#00695c] focus:outline-none focus:ring-2 focus:ring-[#00695c]/50 text-right text-lg font-medium shadow-sm caret-[#00695c] placeholder-gray-400"
-              autoFocus
+              className="w-full h-14 px-4 rounded-xl border-2 border-[#00695c] focus:outline-none focus:ring-2 focus:ring-[#00695c]/50 text-right text-lg font-medium shadow-sm caret-[#00695c] placeholder-gray-400 bg-white"
             />
-            <button 
-              type="submit"
-              disabled={loading}
-              className="absolute left-2 top-2 bottom-2 bg-[#00695c] text-white px-4 rounded-lg hover:bg-[#005c4b] active:scale-95 transition-all flex items-center justify-center disabled:opacity-50"
-            >
-              <Plus size={24} strokeWidth={3} />
-            </button>
           </div>
+          
+          <button 
+            type="submit"
+            disabled={loading}
+            className="w-full bg-[#00695c] text-white h-12 rounded-xl font-bold text-lg shadow-md hover:bg-[#005c4b] flex items-center justify-center gap-2 active:scale-95 transition-all disabled:opacity-50"
+          >
+            <Plus size={24} strokeWidth={3} />
+            <span>أضف</span>
+          </button>
         </form>
 
         <div className="flex-1 overflow-y-auto pr-1 -mr-1 custom-scrollbar">

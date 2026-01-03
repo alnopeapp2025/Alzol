@@ -1,25 +1,41 @@
 import React, { useState } from 'react';
-import { Menu, Share2 } from 'lucide-react';
+import { Menu, Share2, LogOut, Edit } from 'lucide-react';
 import { SideMenu } from './SideMenu';
 import { playSound } from '../utils/soundManager';
+import { motion, AnimatePresence } from 'framer-motion';
 
-export const TopBar = ({ onOpenRegistration, onNavigate }) => {
+export const TopBar = ({ onOpenRegistration, onNavigate, currentUser, onLogout, onOpenPro }) => {
   const [isMenuOpen, setIsMenuOpen] = useState(false);
+  const [isUserMenuOpen, setIsUserMenuOpen] = useState(false);
 
   const handleMenuClick = () => {
-    playSound('click'); // تشغيل الصوت عند فتح القائمة الجانبية
+    playSound('click');
     setIsMenuOpen(true);
   };
 
   const handleShareClick = () => {
-    playSound('click'); // تشغيل الصوت عند ضغط زر المشاركة
-    // منطق المشاركة المستقبلي
+    playSound('click');
+  };
+  
+  const handleUserIconClick = () => {
+    playSound('click');
+    setIsUserMenuOpen(!isUserMenuOpen);
+  };
+
+  const handleLogoutClick = () => {
+    setIsUserMenuOpen(false);
+    if (onLogout) onLogout();
+  };
+
+  const handleEditProfileClick = () => {
+    setIsUserMenuOpen(false);
+    onNavigate('edit-profile');
   };
 
   return (
     <>
       <div className="bg-[#00695c] text-white h-16 flex items-center justify-between px-4 shadow-lg sticky top-0 z-50 rounded-b-2xl">
-        {/* Left Side - Menu (Visually Right in RTL) */}
+        {/* Left Side - Menu */}
         <button 
           onClick={handleMenuClick}
           className="p-2 hover:bg-[#005c4b] rounded-xl transition-colors active:scale-95"
@@ -32,14 +48,60 @@ export const TopBar = ({ onOpenRegistration, onNavigate }) => {
           مخزنك
         </h1>
 
-        {/* Right Side - Share (Visually Left in RTL) */}
-        <div className="flex items-center gap-2">
-          <button 
-            onClick={handleShareClick}
-            className="p-2 hover:bg-[#005c4b] rounded-xl transition-colors active:scale-95"
-          >
-            <Share2 size={24} strokeWidth={2} />
-          </button>
+        {/* Right Side - Share OR Account */}
+        <div className="flex items-center gap-2 relative">
+          {currentUser ? (
+            <div className="relative">
+              <button 
+                onClick={handleUserIconClick}
+                className="p-1 hover:bg-[#005c4b] rounded-full transition-colors active:scale-95 flex items-center justify-center"
+              >
+                {/* Updated User Icon */}
+                <img 
+                  src="https://cdn-icons-png.flaticon.com/512/4140/4140048.png" 
+                  alt="User" 
+                  className="w-9 h-9 rounded-full border-2 border-white/50 shadow-sm bg-white"
+                />
+              </button>
+              
+              {/* User Dropdown */}
+              <AnimatePresence>
+                {isUserMenuOpen && (
+                  <>
+                    <div className="fixed inset-0 z-10" onClick={() => setIsUserMenuOpen(false)}></div>
+                    <motion.div 
+                      initial={{ opacity: 0, y: 10, scale: 0.95 }}
+                      animate={{ opacity: 1, y: 0, scale: 1 }}
+                      exit={{ opacity: 0, y: 10, scale: 0.95 }}
+                      className="absolute top-12 left-0 w-48 bg-white rounded-xl shadow-xl border border-gray-100 overflow-hidden z-20"
+                    >
+                      <button 
+                        onClick={handleEditProfileClick}
+                        className="w-full text-right px-4 py-3 text-sm font-bold text-gray-700 hover:bg-gray-50 flex items-center gap-3 border-b border-gray-100"
+                      >
+                        <Edit size={16} className="text-[#00695c]" />
+                        تعديل حسابي
+                      </button>
+                      <button 
+                        onClick={handleLogoutClick}
+                        className="w-full text-right px-4 py-3 text-sm font-bold text-red-600 hover:bg-red-50 flex items-center gap-3"
+                      >
+                        <LogOut size={16} />
+                        تسجيل خروج
+                      </button>
+                    </motion.div>
+                  </>
+                )}
+              </AnimatePresence>
+            </div>
+          ) : (
+            <button 
+              onClick={handleShareClick}
+              className="p-2 hover:bg-[#005c4b] rounded-xl transition-colors active:scale-95"
+            >
+              <Share2 size={24} strokeWidth={2} />
+            </button>
+          )}
         </div>
       </div>
 
@@ -48,6 +110,7 @@ export const TopBar = ({ onOpenRegistration, onNavigate }) => {
         onClose={() => setIsMenuOpen(false)} 
         onOpenRegistration={onOpenRegistration}
         onNavigate={onNavigate}
+        onOpenPro={onOpenPro}
       />
     </>
   );

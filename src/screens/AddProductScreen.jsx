@@ -1,5 +1,5 @@
 import React, { useState, useEffect, useCallback } from 'react';
-import { ArrowRight, Search, Plus, Save, ScanBarcode, X, ArrowDown, Trash2, CameraOff, Settings } from 'lucide-react';
+import { ArrowRight, Search, Plus, Save, ScanBarcode, X, ArrowDown, Trash2, Settings, UserPlus } from 'lucide-react';
 import { supabase } from '../lib/supabaseClient';
 import { Html5Qrcode } from 'html5-qrcode'; 
 import { Toast } from '../components/Toast';
@@ -22,24 +22,31 @@ const playBeep = () => {
   }
 };
 
-export const AddProductScreen = ({ onBack }) => {
+export const AddProductScreen = ({ onBack, currentUser, onOpenRegistration }) => {
   const [products, setProducts] = useState([]);
   const [searchTerm, setSearchTerm] = useState('');
   const [showSearch, setShowSearch] = useState(false);
   const [showModal, setShowModal] = useState(false);
   const [editingProduct, setEditingProduct] = useState(null);
   const [toast, setToast] = useState({ show: false, message: '' });
+  
+  // Guest Limit State
+  const [showGuestLimitModal, setShowGuestLimitModal] = useState(false);
 
   useEffect(() => {
     fetchProducts();
-  }, []);
+  }, [currentUser]); 
 
-  // Optimization: Simple fetch, already efficient for small datasets
   const fetchProducts = async () => {
-    const { data } = await supabase
-      .from('products')
-      .select('*')
-      .order('created_at', { ascending: false });
+    let query = supabase.from('products').select('*').order('created_at', { ascending: false });
+    
+    if (currentUser) {
+      query = query.eq('user_id', currentUser.id);
+    } else {
+      query = query.is('user_id', null);
+    }
+
+    const { data } = await query;
     if (data) setProducts(data);
   };
 
@@ -49,6 +56,12 @@ export const AddProductScreen = ({ onBack }) => {
   };
 
   const handleAddNew = () => {
+    // Guest Limit Logic: Allow only 3 products for guests
+    if (!currentUser && products.length >= 3) {
+      setShowGuestLimitModal(true);
+      return;
+    }
+
     setEditingProduct(null);
     setShowModal(true);
   };
@@ -64,6 +77,11 @@ export const AddProductScreen = ({ onBack }) => {
     setToast({ show: true, message });
   };
 
+  const handleGuestRegisterClick = () => {
+    setShowGuestLimitModal(false);
+    if (onOpenRegistration) onOpenRegistration('يرجى تسجيل حسابك للمتابعة');
+  };
+
   const filteredProducts = products.filter(p => 
     p.name.toLowerCase().includes(searchTerm.toLowerCase())
   );
@@ -75,6 +93,34 @@ export const AddProductScreen = ({ onBack }) => {
         isVisible={toast.show} 
         onClose={() => setToast({ ...toast, show: false })} 
       />
+
+      {/* Guest Limit Modal */}
+      {showGuestLimitModal && (
+        <div className="fixed inset-0 z-[100] flex items-center justify-center p-4">
+          <div className="absolute inset-0 bg-black/50 backdrop-blur-sm" onClick={() => setShowGuestLimitModal(false)} />
+          <div className="bg-white w-full max-w-sm rounded-3xl shadow-2xl overflow-hidden relative z-10 animate-in zoom-in duration-200 p-6 text-center">
+            <div className="w-16 h-16 bg-[#00695c]/10 rounded-full flex items-center justify-center mx-auto mb-4 text-[#00695c]">
+              <UserPlus size={32} strokeWidth={2.5} />
+            </div>
+            <h3 className="text-xl font-bold text-gray-800 mb-3">خطوة واحدة وتكتمل تجربتك! ✨</h3>
+            <p className="text-gray-600 text-sm leading-relaxed mb-6">
+              سجل معنا الآن مجاناً لتتمكن من إضافة المزيد من المنتجات، وحفظ بياناتك بأمان للوصول إليها في أي وقت. انضم إلينا واستمتع بكل الميزات!
+            </p>
+            <button 
+              onClick={handleGuestRegisterClick}
+              className="w-full bg-[#00695c] text-white h-12 rounded-xl font-bold shadow-md hover:bg-[#005c4b] active:scale-95 transition-transform"
+            >
+              سجل الآن
+            </button>
+            <button 
+              onClick={() => setShowGuestLimitModal(false)}
+              className="mt-3 text-gray-400 text-sm font-medium hover:text-gray-600"
+            >
+              إلغاء
+            </button>
+          </div>
+        </div>
+      )}
 
       {/* Header */}
       <div className="bg-[#00695c] text-white h-16 flex items-center justify-between px-4 shadow-lg shrink-0 rounded-b-2xl z-20">
@@ -158,6 +204,7 @@ export const AddProductScreen = ({ onBack }) => {
       {showModal && (
         <ProductModal 
           product={editingProduct}
+          currentUser={currentUser}
           onClose={handleModalClose} 
           onSuccess={handleSuccess} 
         />
@@ -166,7 +213,7 @@ export const AddProductScreen = ({ onBack }) => {
   );
 };
 
-const ProductModal = ({ product, onClose, onSuccess }) => {
+const ProductModal = ({ product, currentUser, onClose, onSuccess }) => {
   const [loading, setLoading] = useState(false);
   const [categories, setCategories] = useState([]);
   const [showScanner, setShowScanner] = useState(false);
@@ -205,16 +252,21 @@ const ProductModal = ({ product, onClose, onSuccess }) => {
     setLoading(true);
     let error;
 
+    const payload = {
+      ...formData,
+      user_id: currentUser ? currentUser.id : null
+    };
+
     if (product) {
       const { error: updateError } = await supabase
         .from('products')
-        .update(formData)
+        .update(payload)
         .eq('id', product.id);
       error = updateError;
     } else {
       const { error: insertError } = await supabase
         .from('products')
-        .insert([formData]);
+        .insert([payload]);
       error = insertError;
     }
 
@@ -243,7 +295,6 @@ const ProductModal = ({ product, onClose, onSuccess }) => {
     setShowDeleteConfirm(false);
   };
 
-  // Memoized handlers to prevent re-renders and scanner loops
   const handleScanSuccess = useCallback((decodedText) => {
     playBeep();
     setFormData(prev => ({ ...prev, barcode: decodedText }));
@@ -254,8 +305,6 @@ const ProductModal = ({ product, onClose, onSuccess }) => {
   const handlePermissionError = useCallback(() => {
     setPermissionDenied(true);
   }, []);
-
-  const isPriceInvalid = Number(formData.selling_price) < Number(formData.purchase_price) && formData.selling_price && formData.purchase_price;
 
   const inputStyles = "w-full h-12 px-4 rounded-xl border-2 border-[#00695c] focus:outline-none focus:ring-2 focus:ring-[#00695c]/50 text-right text-base font-medium shadow-sm caret-[#00695c] placeholder-gray-400 bg-white";
   const labelStyles = "block text-[#00695c] text-xs font-bold mb-1 text-right px-1";
@@ -311,13 +360,11 @@ const ProductModal = ({ product, onClose, onSuccess }) => {
                     
                     <button 
                       onClick={() => {
-                        // Attempt to open settings (best effort for mobile wrappers)
                         try {
                           window.open("chrome://settings/content/camera");
                         } catch (e) {
                           console.log(e);
                         }
-                        // Reload as the primary action to re-trigger permission prompt
                         window.location.reload();
                       }}
                       className="bg-white text-[#00695c] px-8 py-4 rounded-xl font-bold text-lg hover:bg-gray-100 transition-colors w-full shadow-md"
@@ -354,19 +401,16 @@ const ProductModal = ({ product, onClose, onSuccess }) => {
           </div>
         </div>
         
-        <div><label className={labelStyles}>الكمية</label><input name="quantity" value={formData.quantity} onChange={handleChange} type="number" className={inputStyles} placeholder="0" /></div>
-        
-        <div className="flex flex-col">
-          {/* Reordered: Selling Price First (Right), Purchase Price Second (Left) */}
-          <div className="flex gap-3">
-            <div className="flex-1"><label className={labelStyles}>سعر البيع</label><input name="selling_price" value={formData.selling_price} onChange={handleChange} type="number" className={inputStyles} placeholder="0.00" /></div>
-            <div className="flex-1"><label className={labelStyles}>سعر الشراء</label><input name="purchase_price" value={formData.purchase_price} onChange={handleChange} type="number" className={inputStyles} placeholder="0.00" /></div>
-          </div>
-          {isPriceInvalid && (
-            <div className="text-red-500 text-xs font-bold text-right mt-1 px-1">
-              (يجب أن يكون سعر البيع أكبر من أو يساوي سعر الشراء)
-            </div>
-          )}
+        {/* Row 2: Prices (Purchase First [Right], Selling Second [Left]) */}
+        <div className="flex gap-3">
+             <div className="flex-1"><label className={labelStyles}>سعر الشراء</label><input name="purchase_price" value={formData.purchase_price} onChange={handleChange} type="number" className={inputStyles} placeholder="0.00" /></div>
+             <div className="flex-1"><label className={labelStyles}>سعر البيع</label><input name="selling_price" value={formData.selling_price} onChange={handleChange} type="number" className={inputStyles} placeholder="0.00" /></div>
+        </div>
+
+        {/* Row 3: Quantity & Low Stock Alert (Split 50/50) */}
+        <div className="flex gap-3">
+           <div className="flex-1"><label className={labelStyles}>الكمية</label><input name="quantity" value={formData.quantity} onChange={handleChange} type="number" className={inputStyles} placeholder="0" /></div>
+           <div className="flex-1"><label className={labelStyles}>تنبيه المخزون</label><input name="low_stock_alert" value={formData.low_stock_alert} onChange={handleChange} type="number" className={inputStyles} placeholder="5" /></div>
         </div>
 
         <div>
@@ -382,25 +426,32 @@ const ProductModal = ({ product, onClose, onSuccess }) => {
             </button>
           </div>
         </div>
-        <div><label className={labelStyles}>تنبيه المخزون</label><input name="low_stock_alert" value={formData.low_stock_alert} onChange={handleChange} type="number" className={inputStyles} placeholder="5" /></div>
-        <div><label className={labelStyles}>الصنف</label><select name="category" value={formData.category} onChange={handleChange} className={`${inputStyles} appearance-none`}><option value="عام">عام</option>{categories.map(c => <option key={c.id} value={c.name}>{c.name}</option>)}</select></div>
-        <div className="flex-1"></div>
+        
+        <div>
+          <label className={labelStyles}>الصنف</label>
+          <select name="category" value={formData.category} onChange={handleChange} className={`${inputStyles} appearance-none`}>
+            <option value="عام">عام</option>
+            {categories.map(c => <option key={c.id} value={c.name}>{c.name}</option>)}
+          </select>
+        </div>
+        
+        {/* Moved Button Here: Centrally under Category */}
         <button type="submit" disabled={loading} className="w-full bg-[#00695c] text-white h-14 rounded-xl font-bold text-lg shadow-md hover:bg-[#005c4b] flex items-center justify-center gap-2 mt-2 shrink-0">
           <Save size={24} />
           <span>{product ? 'تحديث البيانات' : 'حفظ المنتج'}</span>
         </button>
+        
+        <div className="flex-1"></div>
       </form>
     </div>
   );
 };
 
-// Updated Scanner Component with Error Handling and Memoization Support
 const ScannerComponent = ({ onScanSuccess, onPermissionError }) => {
   useEffect(() => {
     const html5QrCode = new Html5Qrcode("reader");
     const config = { fps: 10, qrbox: { width: 250, height: 250 } };
     
-    // Start scanning immediately
     html5QrCode.start(
       { facingMode: "environment" }, 
       config,
@@ -412,7 +463,6 @@ const ScannerComponent = ({ onScanSuccess, onPermissionError }) => {
         // ignore frame errors
       }
     ).catch(err => {
-      // Check for permission errors specifically
       const isPermissionError = err?.name === 'NotAllowedError' || err?.name === 'NotFoundError' || err?.toString().includes('Permission');
       if (isPermissionError) {
         onPermissionError();

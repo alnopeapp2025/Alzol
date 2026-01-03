@@ -1,7 +1,8 @@
-import React, { useState } from 'react';
-import { X, LogIn, UserPlus, KeyRound, ShieldCheck, ChevronDown, Phone, Lock, AlertTriangle } from 'lucide-react';
+import React, { useState, useEffect } from 'react';
+import { X, LogIn, UserPlus, KeyRound, ShieldCheck, ChevronDown, Phone, Lock, AlertTriangle, CheckCircle } from 'lucide-react';
 import { supabase } from '../lib/supabaseClient';
 import { Toast } from './Toast';
+import { motion } from 'framer-motion';
 
 // InputField remains outside to prevent focus loss issues
 const InputField = ({ label, icon: Icon, type = "text", value, onChange, placeholder }) => (
@@ -22,11 +23,13 @@ const InputField = ({ label, icon: Icon, type = "text", value, onChange, placeho
   </div>
 );
 
-export const AuthModal = ({ isOpen, onClose }) => {
-  const [view, setView] = useState('login'); // login, register, forgot-check, forgot-reset
+export const AuthModal = ({ isOpen, onClose, onLogin, triggerMessage }) => {
+  const [view, setView] = useState('login'); // login, register, register-success, forgot-check, forgot-reset
   const [loading, setLoading] = useState(false);
   const [toast, setToast] = useState({ show: false, message: '', type: 'success' });
-  const [loginError, setLoginError] = useState(''); // Persistent Error State
+  const [loginError, setLoginError] = useState(''); // Persistent Login Error State
+  const [registerError, setRegisterError] = useState(''); // Persistent Register Error State
+  const [activationCode, setActivationCode] = useState(''); // Store code for success screen
   
   // Form States
   const [formData, setFormData] = useState({
@@ -36,6 +39,13 @@ export const AuthModal = ({ isOpen, onClose }) => {
     securityQuestion: '',
     securityAnswer: ''
   });
+
+  // Switch to register view if triggered by limit
+  useEffect(() => {
+    if (isOpen && triggerMessage) {
+      setView('register');
+    }
+  }, [isOpen, triggerMessage]);
 
   const securityQuestions = [
     'أين ولدت والدتك؟',
@@ -54,7 +64,9 @@ export const AuthModal = ({ isOpen, onClose }) => {
   const resetForm = () => {
     setFormData({ phone: '', password: '', confirmPassword: '', securityQuestion: '', securityAnswer: '' });
     setLoginError('');
+    setRegisterError('');
     setLoading(false);
+    setActivationCode('');
   };
 
   const handleClose = () => {
@@ -81,7 +93,7 @@ export const AuthModal = ({ isOpen, onClose }) => {
 
     if (data) {
       showToast('تم تسجيل الدخول بنجاح');
-      setTimeout(handleClose, 1500);
+      if (onLogin) onLogin(data); // Update parent state
     } else {
       // Persistent Red Error Window
       setLoginError('رقم الهاتف أو كلمة المرور غير صحيحة');
@@ -90,31 +102,36 @@ export const AuthModal = ({ isOpen, onClose }) => {
 
   const handleRegister = async (e) => {
     e.preventDefault();
+    setRegisterError(''); // Clear previous errors
+
     if (!formData.phone || !formData.password || !formData.securityQuestion || !formData.securityAnswer) {
       showToast('يرجى تعبئة جميع الحقول بشكل صحيح', 'error');
       return;
     }
     setLoading(true);
 
-    const activationCode = Math.random().toString(36).substring(2, 8).toUpperCase();
+    const code = Math.random().toString(36).substring(2, 8).toUpperCase();
 
-    const { error } = await supabase.from('app_users').insert([{
+    const { data, error } = await supabase.from('app_users').insert([{
       username: formData.phone,
       password: formData.password,
       security_question: formData.securityQuestion,
       security_answer: formData.securityAnswer,
-      activation_code: activationCode
-    }]);
+      activation_code: code
+    }]).select().single();
 
     setLoading(false);
 
-    if (!error) {
-      // Enhanced Success Message
-      alert(`تم التسجيل بنجاح! \n\nكود التفعيل الخاص بك هو: ${activationCode}\n\nيرجى الاحتفاظ به لاستعادة الحساب.`);
-      setTimeout(() => setView('login'), 500);
+    if (!error && data) {
+      setActivationCode(code);
+      setView('register-success');
+      
+      // Removed Data Migration (Rollback)
+
     } else {
       console.error(error);
-      showToast('بيانات التسجيل غير صحيحة أو المستخدم موجود مسبقاً', 'error');
+      // Fixed Error Message as requested
+      setRegisterError('رقم الهاتف مسجل مسبقاً، يرجى اختيار رقم هاتف جديد أو استعادة الحساب من (نسيت كلمة المرور)');
     }
   };
 
@@ -179,6 +196,7 @@ export const AuthModal = ({ isOpen, onClose }) => {
           <h2 className="text-lg font-bold flex items-center gap-2">
             {view === 'login' && <><LogIn size={24} /> تسجيل الدخول</>}
             {view === 'register' && <><UserPlus size={24} /> حساب جديد</>}
+            {view === 'register-success' && <><CheckCircle size={24} /> تم التسجيل</>}
             {(view === 'forgot-check' || view === 'forgot-reset') && <><KeyRound size={24} /> استعادة كلمة المرور</>}
           </h2>
           <button onClick={handleClose} className="p-1 hover:bg-white/20 rounded-full">
@@ -187,6 +205,16 @@ export const AuthModal = ({ isOpen, onClose }) => {
         </div>
 
         <div className="p-6">
+          
+          {/* Trigger Message (For Guest Limit) */}
+          {triggerMessage && view === 'register' && (
+            <div className="bg-yellow-50 border border-yellow-200 rounded-xl p-3 mb-4 text-center">
+              <p className="text-yellow-800 text-sm font-bold leading-relaxed">
+                {triggerMessage}
+              </p>
+            </div>
+          )}
+
           {/* LOGIN VIEW */}
           {view === 'login' && (
             <form onSubmit={handleLogin} className="flex flex-col gap-4">
@@ -194,10 +222,10 @@ export const AuthModal = ({ isOpen, onClose }) => {
               {/* Persistent Error Window */}
               {loginError && (
                 <div className="bg-red-50 border-2 border-red-100 rounded-xl p-4 flex items-center gap-3 animate-in slide-in-from-top duration-200">
-                  <div className="bg-red-100 p-2 rounded-full text-red-600">
+                  <div className="bg-red-100 p-2 rounded-full text-red-600 shrink-0">
                     <AlertTriangle size={20} strokeWidth={2.5} />
                   </div>
-                  <p className="text-red-600 font-bold text-sm leading-tight">
+                  <p className="text-red-600 font-bold text-sm leading-tight text-right">
                     {loginError}
                   </p>
                 </div>
@@ -235,18 +263,37 @@ export const AuthModal = ({ isOpen, onClose }) => {
           {/* REGISTER VIEW */}
           {view === 'register' && (
             <form onSubmit={handleRegister} className="flex flex-col gap-4">
+              
+              {/* Persistent Register Error Window */}
+              {registerError && (
+                <div className="bg-red-50 border-2 border-red-100 rounded-xl p-4 flex items-center gap-3 animate-in slide-in-from-top duration-200">
+                  <div className="bg-red-100 p-2 rounded-full text-red-600 shrink-0">
+                    <AlertTriangle size={20} strokeWidth={2.5} />
+                  </div>
+                  <p className="text-red-600 font-bold text-sm leading-tight text-right">
+                    {registerError}
+                  </p>
+                </div>
+              )}
+
               <InputField 
                 label="رقم الهاتف" 
                 icon={Phone} 
                 value={formData.phone} 
-                onChange={e => setFormData({...formData, phone: e.target.value})}
+                onChange={e => {
+                   setFormData({...formData, phone: e.target.value});
+                   setRegisterError('');
+                }}
               />
               <InputField 
                 label="كلمة المرور" 
                 icon={Lock} 
                 type="password"
                 value={formData.password} 
-                onChange={e => setFormData({...formData, password: e.target.value})}
+                onChange={e => {
+                   setFormData({...formData, password: e.target.value});
+                   setRegisterError('');
+                }}
               />
               
               <div>
@@ -280,6 +327,40 @@ export const AuthModal = ({ isOpen, onClose }) => {
                 العودة لتسجيل الدخول
               </button>
             </form>
+          )}
+
+          {/* REGISTER SUCCESS VIEW */}
+          {view === 'register-success' && (
+            <div className="flex flex-col items-center text-center py-4">
+              <motion.div 
+                initial={{ scale: 0 }}
+                animate={{ scale: 1 }}
+                transition={{ type: "spring", stiffness: 260, damping: 20 }}
+                className="w-24 h-24 bg-green-100 rounded-full flex items-center justify-center mb-6"
+              >
+                <CheckCircle size={64} className="text-green-600" strokeWidth={3} />
+              </motion.div>
+              
+              <h3 className="text-xl font-bold text-[#00695c] mb-4">تم التسجيل بنجاح!</h3>
+              
+              <div className="bg-gray-50 p-4 rounded-xl border border-gray-200 w-full mb-4">
+                <p className="text-gray-600 text-sm mb-2">كود التفعيل الخاص بك هو:</p>
+                <div className="text-3xl font-black text-gray-800 tracking-widest select-all">
+                  {activationCode}
+                </div>
+              </div>
+              
+              <p className="text-red-500 text-xs font-bold mb-6">
+                يرجى الاحتفاظ به لاستعادة الحساب.
+              </p>
+              
+              <button 
+                onClick={() => setView('login')}
+                className="w-full bg-[#00695c] text-white h-12 rounded-xl font-bold shadow-md hover:bg-[#005c4b] active:scale-95 transition-transform"
+              >
+                تسجيل الدخول الآن
+              </button>
+            </div>
           )}
 
           {/* FORGOT PASSWORD - CHECK */}

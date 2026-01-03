@@ -2,11 +2,11 @@ import React from 'react';
 import { motion, AnimatePresence } from 'framer-motion';
 import { 
   Save, RotateCcw, Trash2, Settings, 
-  Info, Star, Share2, Lock, Phone, X, LogIn 
+  Info, Star, Share2, Lock, Phone, X, LogIn, Crown 
 } from 'lucide-react';
 import { playSound } from '../utils/soundManager';
 
-export const SideMenu = ({ isOpen, onClose, onOpenRegistration, onNavigate }) => {
+export const SideMenu = ({ isOpen, onClose, onOpenRegistration, onNavigate, onOpenPro }) => {
   const menuGroups = [
     {
       title: 'بيانات العضوية',
@@ -48,6 +48,17 @@ export const SideMenu = ({ isOpen, onClose, onOpenRegistration, onNavigate }) =>
           action: () => {
             onClose();
             onNavigate('settings');
+          }
+        },
+        // Pro Subscription Item - Gold & Pulsing
+        {
+          icon: Crown,
+          label: 'اشتراك pro',
+          color: '#FFD700', // Gold
+          isPro: true,
+          action: () => {
+            onClose();
+            if (onOpenPro) onOpenPro();
           }
         }
       ]
@@ -115,7 +126,7 @@ export const SideMenu = ({ isOpen, onClose, onOpenRegistration, onNavigate }) =>
                           playSound('click'); // تشغيل الصوت عند النقر على عنصر القائمة
                           item.action && item.action();
                         }}
-                        className="flex items-center gap-3 p-3 hover:bg-gray-50 rounded-xl transition-colors text-right w-full group active:bg-gray-100"
+                        className={`flex items-center gap-3 p-3 hover:bg-gray-50 rounded-xl transition-colors text-right w-full group active:bg-gray-100 ${item.isPro ? 'animate-pulse' : ''}`}
                       >
                         <div 
                           className="p-2 rounded-lg bg-gray-50 group-hover:bg-white shadow-sm transition-colors border border-gray-100"
@@ -123,7 +134,9 @@ export const SideMenu = ({ isOpen, onClose, onOpenRegistration, onNavigate }) =>
                         >
                           <item.icon size={20} strokeWidth={2} />
                         </div>
-                        <span className="text-gray-700 font-medium text-sm flex-1">{item.label}</span>
+                        <span className={`text-gray-700 font-medium text-sm flex-1 ${item.isPro ? 'text-yellow-600 font-bold' : ''}`}>
+                          {item.label}
+                        </span>
                       </button>
                     ))}
                   </div>

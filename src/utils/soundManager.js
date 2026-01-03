@@ -9,13 +9,19 @@ export const playSound = (type) => {
 
   try {
     if (type === 'click') {
-      // تشغيل الملف الصوتي المخصص sound1.wav من مجلد public
-      // المسار /sound1.wav يشير مباشرة إلى الملف الذي قمت برفعه في public
-      const audio = new Audio('/sound1.wav');
-      audio.volume = 1.0; // مستوى صوت مناسب
+      // --- TEST SOUND (صوت تجريبي) ---
+      // نستخدم رابط خارجي مضمون (Pop Sound) للتأكد من أن الكود يعمل
+      // We use a reliable external URL to prove the code works
+      const audio = new Audio('https://codeskulptor-demos.commondatastorage.googleapis.com/pang/pop.mp3');
+      
+      // --- YOUR CUSTOM SOUND (صوتك الخاص) ---
+      // عندما تريد تفعيل ملفك، احذف السطر أعلاه وفعل السطر أدناه:
+      // When you want to use your file, remove the line above and uncomment below:
+      // const audio = new Audio('/sound1.wav');
+      
+      audio.volume = 0.6;
       audio.play().catch(e => {
-        // تجاهل الأخطاء إذا لم يكن الملف قد حمل بالكامل بعد أو قيود المتصفح
-        console.warn("Audio play failed or file not found:", e);
+        console.warn("Click sound play failed:", e);
       });
     } else if (type === 'barcode') {
       // الإبقاء على صوت الباركود الإلكتروني (Beep) كما هو
@@ -33,6 +39,6 @@ export const playSound = (type) => {
       setTimeout(() => oscillator.stop(), 100);
     }
   } catch (e) {
-    console.error("Audio Context not supported", e);
+    console.error("Audio Error", e);
   }
 };
