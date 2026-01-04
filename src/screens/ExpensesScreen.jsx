@@ -1,6 +1,6 @@
 import React, { useState, useEffect } from 'react';
 import { ArrowRight, Plus, Wallet, AlertCircle, Calendar, Save, X, Trash2, Edit } from 'lucide-react';
-import { fetchData, insertData, updateData, deleteData } from '../lib/dataService'; // Use Data Service
+import { fetchData, insertData, updateData, deleteData } from '../lib/dataService'; 
 import { Toast } from '../components/Toast';
 import { ConfirmDialog } from '../components/ConfirmDialog';
 
@@ -10,6 +10,7 @@ export const ExpensesScreen = ({ onBack }) => {
   const [showModal, setShowModal] = useState(false);
   const [loading, setLoading] = useState(false);
   const [toast, setToast] = useState({ show: false, message: '' });
+  const [currentUser, setCurrentUser] = useState(null);
   
   // Edit/Delete State
   const [selectedExpense, setSelectedExpense] = useState(null);
@@ -21,12 +22,19 @@ export const ExpensesScreen = ({ onBack }) => {
   const [formData, setFormData] = useState({
     name: '',
     amount: '',
-    payment_method: 'رصيد بنكك' // Default
+    payment_method: 'رصيد بنكك'
   });
 
   useEffect(() => {
-    loadData();
+    const savedUser = localStorage.getItem('app_user');
+    if (savedUser) {
+      setCurrentUser(JSON.parse(savedUser));
+    }
   }, []);
+
+  useEffect(() => {
+    loadData();
+  }, [currentUser]);
 
   const loadData = async () => {
     await fetchExpenses();
@@ -35,14 +43,25 @@ export const ExpensesScreen = ({ onBack }) => {
 
   const fetchExpenses = async () => {
     const data = await fetchData('expenses');
-    if (data) setExpenses(data);
+    if (data) {
+      // PRIVACY FILTER
+      const userExpenses = currentUser 
+        ? data.filter(e => e.user_id == currentUser.id)
+        : data.filter(e => !e.user_id);
+      setExpenses(userExpenses);
+    }
   };
 
   const fetchBalances = async () => {
     const data = await fetchData('treasury_balances');
     if (data) {
+      // PRIVACY FILTER
+      const userBalances = currentUser 
+        ? data.filter(b => b.user_id == currentUser.id)
+        : data.filter(b => !b.user_id);
+
       const balanceMap = {};
-      data.forEach(item => {
+      userBalances.forEach(item => {
         balanceMap[item.name] = item.amount;
       });
       setBalances(balanceMap);
@@ -61,6 +80,7 @@ export const ExpensesScreen = ({ onBack }) => {
     if (!formData.name || !formData.amount) return;
 
     const amount = parseFloat(formData.amount);
+    const userId = currentUser ? currentUser.id : null;
     
     if (!isEditing) {
       const balance = balances[formData.payment_method] || 0;
@@ -85,9 +105,12 @@ export const ExpensesScreen = ({ onBack }) => {
       if (!error) {
         if (isOffline) isOfflineOp = true;
         
-        // Fix: Update Treasury Programmatically (Decrease)
+        // Update Treasury Programmatically (Decrease) - PRIVATE
         const treasuryData = await fetchData('treasury_balances');
-        const balanceItem = treasuryData.find(d => d.name === selectedExpense.payment_method);
+        const balanceItem = treasuryData.find(d => 
+          d.name === selectedExpense.payment_method && (userId ? d.user_id == userId : !d.user_id)
+        );
+
         if (balanceItem) {
           await updateData('treasury_balances', balanceItem.id, {
             amount: Number(balanceItem.amount) - diff
@@ -103,19 +126,29 @@ export const ExpensesScreen = ({ onBack }) => {
         name: formData.name,
         amount: amount,
         payment_method: formData.payment_method,
-        expense_date: getFormattedDate()
+        expense_date: getFormattedDate(),
+        user_id: userId // Link to User
       });
 
       if (!error) {
         if (isOffline) isOfflineOp = true;
 
-        // Fix: Update Treasury Programmatically (Decrease)
-        // We do this manually to ensure offline support and immediate UI update
+        // Update Treasury Programmatically (Decrease) - PRIVATE
         const treasuryData = await fetchData('treasury_balances');
-        const balanceItem = treasuryData.find(d => d.name === formData.payment_method);
+        const balanceItem = treasuryData.find(d => 
+          d.name === formData.payment_method && (userId ? d.user_id == userId : !d.user_id)
+        );
+
         if (balanceItem) {
            await updateData('treasury_balances', balanceItem.id, {
              amount: Number(balanceItem.amount) - amount
+           });
+        } else {
+           // Should not happen if validation passed, but just in case create negative balance
+           await insertData('treasury_balances', {
+             name: formData.payment_method,
+             amount: -amount,
+             user_id: userId
            });
         }
 
@@ -135,6 +168,7 @@ export const ExpensesScreen = ({ onBack }) => {
     loadData();
   };
 
+  // ... (Rest of UI remains identical) ...
   const handleExpenseClick = (item) => {
     setSelectedExpense(item);
     setShowActionModal(true);

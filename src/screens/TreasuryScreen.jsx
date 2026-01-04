@@ -1,38 +1,53 @@
 import React, { useState, useEffect } from 'react';
 import { ArrowRight, TrendingUp } from 'lucide-react';
-import { fetchData } from '../lib/dataService'; // Use Data Service for Offline
+import { fetchData } from '../lib/dataService'; 
+import { supabase } from '../lib/supabaseClient'; // Import supabase for real-time subscription if needed
 
 export const TreasuryScreen = ({ onBack }) => {
   const [totalTreasury, setTotalTreasury] = useState(0);
+  const [currentUser, setCurrentUser] = useState(null);
   
   // Initial Buttons
   const [treasuryData, setTreasuryData] = useState([
-    { id: 'bok', name: 'رصيد بنكك', amount: 0, color: '#d32f2f', textColor: 'text-white' }, // Red
-    { id: 'fib', name: 'رصيد بنك فيصل', amount: 0, color: '#fbc02d', textColor: 'text-gray-900' }, // Yellow
+    { id: 'bok', name: 'رصيد بنكك', amount: 0, color: '#d32f2f', textColor: 'text-white' }, 
+    { id: 'fib', name: 'رصيد بنك فيصل', amount: 0, color: '#fbc02d', textColor: 'text-gray-900' }, 
     { id: 'omd', name: 'بنك أم درمان', amount: 0, color: '#2e7d32', textColor: 'text-white' },
     { id: 'other', name: 'بنك آخر', amount: 0, color: '#7b1fa2', textColor: 'text-white' }
   ]);
 
   useEffect(() => {
-    loadData();
-    // In a real app with offline support, we might poll or use a listener on localStorage for updates
-    // For now, simple load on mount is sufficient
+    // Get Current User
+    const savedUser = localStorage.getItem('app_user');
+    if (savedUser) {
+      const user = JSON.parse(savedUser);
+      setCurrentUser(user);
+      loadData(user.id);
+    } else {
+      // Guest Mode (Optional: Handle guest data separately or show 0)
+      loadData(null);
+    }
   }, []);
 
-  const loadData = async () => {
+  const loadData = async (userId) => {
     const data = await fetchData('treasury_balances');
     
     if (data && data.length > 0) {
+      // STRICT FILTERING: Only show balances belonging to this user
+      const userBalances = userId 
+        ? data.filter(d => d.user_id == userId)
+        : data.filter(d => !d.user_id); // Guest data
+
       // 1. Update UI Buttons
       setTreasuryData(prevData => {
         return prevData.map(uiBank => {
-          const dbBank = data.find(d => d.name === uiBank.name);
-          return dbBank ? { ...uiBank, amount: dbBank.amount } : uiBank;
+          // Find the specific bank row for this user
+          const dbBank = userBalances.find(d => d.name === uiBank.name);
+          return dbBank ? { ...uiBank, amount: dbBank.amount } : { ...uiBank, amount: 0 };
         });
       });
 
-      // 2. Calculate Total Treasury (Sum of ALL bank balances)
-      const total = data
+      // 2. Calculate Total Treasury (Sum of ALL bank balances for this user)
+      const total = userBalances
         .filter(d => d.name !== 'كاش نقدا') 
         .reduce((sum, item) => sum + Number(item.amount), 0);
       
@@ -109,7 +124,7 @@ export const TreasuryScreen = ({ onBack }) => {
                       className="w-full rounded-t-lg transition-all duration-1000 ease-out relative group-hover:opacity-90"
                       style={{ 
                         height: `${heightPercentage}%`, 
-                        backgroundColor: bank.color // Synced: Bankak=Red, Faisal=Yellow
+                        backgroundColor: bank.color 
                       }}
                     >
                       <div className="absolute -top-8 left-1/2 -translate-x-1/2 bg-gray-800 text-white text-xs py-1 px-2 rounded opacity-0 group-hover:opacity-100 transition-opacity whitespace-nowrap z-10">

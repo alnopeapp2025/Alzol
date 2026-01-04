@@ -1,6 +1,6 @@
 import React, { useState, useEffect } from 'react';
 import { ArrowRight, Plus, HardHat, Calendar, Clock, DollarSign, Briefcase, X, Save, Trash2 } from 'lucide-react';
-import { fetchData, insertData, deleteData } from '../lib/dataService'; // Use Data Service for Offline
+import { fetchData, insertData, deleteData } from '../lib/dataService'; 
 import { Toast } from '../components/Toast';
 import { ConfirmDialog } from '../components/ConfirmDialog';
 
@@ -10,6 +10,7 @@ export const WorkersScreen = ({ onBack }) => {
   const [loading, setLoading] = useState(false);
   const [toast, setToast] = useState({ show: false, message: '' });
   const [deleteDialog, setDeleteDialog] = useState({ show: false, id: null });
+  const [currentUser, setCurrentUser] = useState(null);
   
   // Date Limits
   const [dateLimits, setDateLimits] = useState({ min: '', max: '' });
@@ -19,32 +20,41 @@ export const WorkersScreen = ({ onBack }) => {
     name: '',
     salary: '',
     job_title: '',
-    start_date: '' // datetime-local
+    start_date: '' 
   });
 
   useEffect(() => {
-    loadWorkers();
+    const savedUser = localStorage.getItem('app_user');
+    if (savedUser) {
+      setCurrentUser(JSON.parse(savedUser));
+    }
     
-    // Calculate Date Limits
     const now = new Date();
-    const maxDate = now.toISOString().slice(0, 16); // Current datetime
-    
+    const maxDate = now.toISOString().slice(0, 16); 
     const past = new Date();
     past.setDate(past.getDate() - 7);
-    const minDate = past.toISOString().slice(0, 16); // 7 days ago
-    
+    const minDate = past.toISOString().slice(0, 16); 
     setDateLimits({ min: minDate, max: maxDate });
 
-    // Refresh timer every second
     const timer = setInterval(() => {
-      setWorkers(prev => [...prev]); // Force re-render for countdown
+      setWorkers(prev => [...prev]); 
     }, 1000);
     return () => clearInterval(timer);
   }, []);
 
+  useEffect(() => {
+    loadWorkers();
+  }, [currentUser]);
+
   const loadWorkers = async () => {
     const data = await fetchData('workers');
-    if (data) setWorkers(data);
+    if (data) {
+      // PRIVACY FILTER
+      const userWorkers = currentUser 
+        ? data.filter(w => w.user_id == currentUser.id)
+        : data.filter(w => !w.user_id);
+      setWorkers(userWorkers);
+    }
   };
 
   const handleSave = async (e) => {
@@ -52,11 +62,14 @@ export const WorkersScreen = ({ onBack }) => {
     if (!formData.name || !formData.salary || !formData.start_date) return;
 
     setLoading(true);
+    const userId = currentUser ? currentUser.id : null;
+
     const { error, isOffline } = await insertData('workers', {
       name: formData.name,
       salary: formData.salary,
       job_title: formData.job_title,
-      start_date: new Date(formData.start_date).toISOString()
+      start_date: new Date(formData.start_date).toISOString(),
+      user_id: userId // Link to User
     });
 
     setLoading(false);
@@ -85,14 +98,12 @@ export const WorkersScreen = ({ onBack }) => {
     const start = new Date(startDateStr);
     const now = new Date();
     
-    // Calculate next pay date (every 30 days from start)
     let nextPay = new Date(start);
     while (nextPay < now) {
       nextPay.setDate(nextPay.getDate() + 30);
     }
 
     const diff = nextPay - now;
-    
     if (diff <= 0) return "00:00:00:00";
 
     const days = Math.floor(diff / (1000 * 60 * 60 * 24));
@@ -150,7 +161,6 @@ export const WorkersScreen = ({ onBack }) => {
                     </div>
                     <div>
                       <h3 className="font-bold text-gray-800 text-lg leading-tight">{worker.name}</h3>
-                      {/* Job Title (Fixed Position) */}
                       <div className="flex items-center gap-1 text-xs text-gray-500 font-medium mt-1">
                         <Briefcase size={12} /> {worker.job_title || 'غير محدد'}
                       </div>
@@ -203,7 +213,7 @@ export const WorkersScreen = ({ onBack }) => {
         <Plus size={32} strokeWidth={3} />
       </button>
 
-      {/* Add Modal - Positioned at Top */}
+      {/* Add Modal */}
       {showModal && (
         <div className="fixed inset-0 z-50 flex items-start justify-center p-4 pt-24">
           <div className="absolute inset-0 bg-black/50 backdrop-blur-sm" onClick={() => setShowModal(false)} />

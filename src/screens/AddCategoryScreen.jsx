@@ -1,27 +1,32 @@
 import React, { useState, useEffect } from 'react';
 import { ArrowRight, Trash2, Edit, Plus } from 'lucide-react';
-import { fetchData, insertData, deleteData, updateData } from '../lib/dataService'; // Use Data Service
+import { fetchData, insertData, deleteData, updateData } from '../lib/dataService'; 
 import { Toast } from '../components/Toast';
 import { ConfirmDialog } from '../components/ConfirmDialog';
 import { InputDialog } from '../components/InputDialog';
 
-export const AddCategoryScreen = ({ onBack }) => {
+export const AddCategoryScreen = ({ onBack, currentUser }) => {
   const [categories, setCategories] = useState([]);
   const [inputValue, setInputValue] = useState('');
   const [loading, setLoading] = useState(false);
   
-  // UI States
   const [toast, setToast] = useState({ show: false, message: '' });
   const [deleteDialog, setDeleteDialog] = useState({ show: false, id: null });
   const [editDialog, setEditDialog] = useState({ show: false, id: null, name: '' });
 
   useEffect(() => {
     loadCategories();
-  }, []);
+  }, [currentUser]);
 
   const loadCategories = async () => {
     const data = await fetchData('categories');
-    setCategories(data);
+    if (data) {
+      // PRIVACY FILTER
+      const userCats = currentUser 
+        ? data.filter(c => c.user_id == currentUser.id)
+        : data.filter(c => !c.user_id);
+      setCategories(userCats);
+    }
   };
 
   const showToast = (message) => {
@@ -33,17 +38,16 @@ export const AddCategoryScreen = ({ onBack }) => {
     if (!inputValue.trim()) return;
 
     setLoading(true);
+    const userId = currentUser ? currentUser.id : null;
     
-    const payload = { name: inputValue };
+    const payload = { name: inputValue, user_id: userId };
     const { data, error, isOffline } = await insertData('categories', payload);
 
     if (error) {
       alert('حدث خطأ أثناء الإضافة');
     } else {
       showToast(isOffline ? 'تم الحفظ (وضع عدم الاتصال)' : 'تمت إضافة الصنف بنجاح');
-      // Update local state immediately (Optimistic UI handled by dataService returns)
       if (data) {
-         // Re-fetch to ensure sync with local storage state
          loadCategories();
       }
       setInputValue('');
@@ -53,9 +57,7 @@ export const AddCategoryScreen = ({ onBack }) => {
 
   const confirmDelete = async () => {
     if (!deleteDialog.id) return;
-    
     const { error, isOffline } = await deleteData('categories', deleteDialog.id);
-
     if (!error) {
       setCategories(categories.filter(c => c.id !== deleteDialog.id));
       showToast(isOffline ? 'تم الحذف (وضع عدم الاتصال)' : 'تم حذف الصنف بنجاح');
@@ -66,7 +68,6 @@ export const AddCategoryScreen = ({ onBack }) => {
   const confirmEdit = async (newName) => {
     if (newName && newName !== editDialog.name) {
       const { error, isOffline } = await updateData('categories', editDialog.id, { name: newName });
-
       if (!error) {
         setCategories(categories.map(c => c.id === editDialog.id ? { ...c, name: newName } : c));
         showToast(isOffline ? 'تم التحديث (وضع عدم الاتصال)' : 'تم تحديث الصنف بنجاح');
@@ -77,12 +78,7 @@ export const AddCategoryScreen = ({ onBack }) => {
 
   return (
     <div className="h-screen flex flex-col bg-[#FFF9C4] overflow-hidden relative font-sans">
-      <Toast 
-        message={toast.message} 
-        isVisible={toast.show} 
-        onClose={() => setToast({ ...toast, show: false })} 
-      />
-      
+      <Toast message={toast.message} isVisible={toast.show} onClose={() => setToast({ ...toast, show: false })} />
       <ConfirmDialog 
         isOpen={deleteDialog.show}
         title="حذف الصنف"
@@ -90,7 +86,6 @@ export const AddCategoryScreen = ({ onBack }) => {
         onConfirm={confirmDelete}
         onCancel={() => setDeleteDialog({ show: false, id: null })}
       />
-
       <InputDialog
         isOpen={editDialog.show}
         title="تعديل اسم الصنف"
@@ -101,10 +96,7 @@ export const AddCategoryScreen = ({ onBack }) => {
 
       {/* Header */}
       <div className="bg-[#00695c] text-white h-16 flex items-center px-4 shadow-lg shrink-0 rounded-b-2xl z-10">
-        <button 
-          onClick={onBack}
-          className="p-2 hover:bg-[#005c4b] rounded-xl transition-colors active:scale-95"
-        >
+        <button onClick={onBack} className="p-2 hover:bg-[#005c4b] rounded-xl transition-colors active:scale-95">
           <ArrowRight size={24} strokeWidth={2.5} />
         </button>
         <h1 className="text-xl font-bold flex-1 text-center ml-10">إضافة صنف</h1>
@@ -160,7 +152,6 @@ export const AddCategoryScreen = ({ onBack }) => {
                 </button>
               </div>
             ))}
-            
             {categories.length === 0 && (
               <div className="text-center text-gray-400 mt-10 font-medium">
                 لا توجد أصناف مضافة حالياً
