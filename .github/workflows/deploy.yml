@@ -3,46 +3,33 @@ name: Deploy to GitHub Pages
 on:
   push:
     branches: [ main ]
-  workflow_dispatch:
 
 permissions:
-  contents: read
-  pages: write
-  id-token: write
+  contents: write
 
 jobs:
-  build:
+  build-and-deploy:
     runs-on: ubuntu-latest
-
     steps:
-      - name: Checkout
-        uses: actions/checkout@v4
+      - name: Checkout 🛎️
+        uses: actions/checkout@v3
 
-      - name: Setup Node
-        uses: actions/setup-node@v4
+      - name: Setup Node.js ⚙️
+        uses: actions/setup-node@v3
         with:
-          node-version: 20
-          cache: 'yarn'
-
-      - name: Install dependencies
-        # استخدام --no-frozen-lockfile لتجاوز خطأ عدم تطابق ملف القفل وتحديثه تلقائياً
+          node-version: 18
+          # We remove the cache here to prevent stale cache issues
+          
+      - name: Install Dependencies 🔧
+        # The magic fix: --no-frozen-lockfile allows the install to proceed 
+        # even if yarn.lock is slightly out of sync.
         run: yarn install --no-frozen-lockfile
 
-      - name: Build
+      - name: Build 🏗️
         run: yarn build
 
-      - name: Upload artifact
-        uses: actions/upload-pages-artifact@v3
+      - name: Deploy 🚀
+        uses: JamesIves/github-pages-deploy-action@v4
         with:
-          path: ./dist
-
-  deploy:
-    environment:
-      name: github-pages
-      url: ${{ steps.deployment.outputs.page_url }}
-    runs-on: ubuntu-latest
-    needs: build
-    steps:
-      - name: Deploy to GitHub Pages
-        id: deployment
-        uses: actions/deploy-pages@v4
+          folder: dist
+          branch: gh-pages
