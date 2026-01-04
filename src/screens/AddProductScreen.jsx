@@ -432,21 +432,18 @@ const ProductModal = ({ product, currentUser, onClose, onSuccess }) => {
   );
 };
 
-// --- ULTRA FAST NATIVE SCANNER ---
+// --- ULTRA FAST NATIVE SCANNER (TeaCapps Style) ---
 const NativeBarcodeScanner = ({ onScan, onError }) => {
   const videoRef = useRef(null);
-  const [isNativeSupported, setIsNativeSupported] = useState(true);
+  const requestRef = useRef(null);
 
   useEffect(() => {
-    // Check for native BarcodeDetector support
     if (!('BarcodeDetector' in window)) {
-      console.warn("BarcodeDetector not supported, falling back to polyfill logic would go here but we enforce native for speed request.");
-      // In a real scenario, we'd fallback to html5-qrcode here, but let's try to use the stream + interval
-      setIsNativeSupported(false);
+      console.warn("BarcodeDetector not supported.");
+      // Fallback logic could go here
     }
 
     let stream = null;
-    let interval = null;
     let barcodeDetector = null;
 
     if ('BarcodeDetector' in window) {
@@ -456,14 +453,35 @@ const NativeBarcodeScanner = ({ onScan, onError }) => {
       });
     }
 
+    const detectLoop = async () => {
+      if (videoRef.current && videoRef.current.readyState === videoRef.current.HAVE_ENOUGH_DATA && barcodeDetector) {
+        try {
+          const barcodes = await barcodeDetector.detect(videoRef.current);
+          if (barcodes.length > 0) {
+            const code = barcodes[0].rawValue;
+            if (code) {
+              onScan(code);
+              return; // Stop loop on success
+            }
+          }
+        } catch (e) {
+          // Ignore errors during detection frame
+        }
+      }
+      // Loop as fast as possible (Real-time)
+      requestRef.current = requestAnimationFrame(detectLoop);
+    };
+
     const startCamera = async () => {
       try {
         const constraints = {
+          audio: false,
           video: {
             facingMode: 'environment',
-            width: { ideal: 1920 }, // High Res for distance
+            width: { ideal: 1920 }, // High Resolution for distance
             height: { ideal: 1080 },
-            focusMode: 'continuous' // Crucial for distance
+            // Request continuous focus specifically
+            advanced: [{ focusMode: 'continuous' }]
           }
         };
 
@@ -472,26 +490,9 @@ const NativeBarcodeScanner = ({ onScan, onError }) => {
         if (videoRef.current) {
           videoRef.current.srcObject = stream;
           await videoRef.current.play();
-
-          // Start Scanning Loop
-          interval = setInterval(async () => {
-            if (videoRef.current && videoRef.current.readyState === videoRef.current.HAVE_ENOUGH_DATA) {
-              try {
-                if (barcodeDetector) {
-                  const barcodes = await barcodeDetector.detect(videoRef.current);
-                  if (barcodes.length > 0) {
-                    const code = barcodes[0].rawValue;
-                    if (code) {
-                      clearInterval(interval);
-                      onScan(code);
-                    }
-                  }
-                }
-              } catch (e) {
-                // Ignore detection errors
-              }
-            }
-          }, 100); // Check every 100ms (10fps is enough for native detection which is instant)
+          
+          // Start the high-speed loop
+          requestRef.current = requestAnimationFrame(detectLoop);
         }
       } catch (err) {
         console.error("Camera Error", err);
@@ -504,7 +505,7 @@ const NativeBarcodeScanner = ({ onScan, onError }) => {
     startCamera();
 
     return () => {
-      if (interval) clearInterval(interval);
+      if (requestRef.current) cancelAnimationFrame(requestRef.current);
       if (stream) {
         stream.getTracks().forEach(track => track.stop());
       }

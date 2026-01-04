@@ -505,9 +505,10 @@ export const SalesScreen = ({ onBack }) => {
   );
 };
 
-// --- NATIVE SCANNER REUSED ---
+// --- ULTRA FAST NATIVE SCANNER (TeaCapps Style) ---
 const NativeBarcodeScanner = ({ onScan, onError }) => {
   const videoRef = useRef(null);
+  const requestRef = useRef(null);
 
   useEffect(() => {
     if (!('BarcodeDetector' in window)) {
@@ -516,7 +517,6 @@ const NativeBarcodeScanner = ({ onScan, onError }) => {
     }
 
     let stream = null;
-    let interval = null;
     let barcodeDetector = null;
 
     if ('BarcodeDetector' in window) {
@@ -526,14 +526,35 @@ const NativeBarcodeScanner = ({ onScan, onError }) => {
       });
     }
 
+    const detectLoop = async () => {
+      if (videoRef.current && videoRef.current.readyState === videoRef.current.HAVE_ENOUGH_DATA && barcodeDetector) {
+        try {
+          const barcodes = await barcodeDetector.detect(videoRef.current);
+          if (barcodes.length > 0) {
+            const code = barcodes[0].rawValue;
+            if (code) {
+              onScan(code);
+              return; // Stop loop on success
+            }
+          }
+        } catch (e) {
+          // Ignore errors during detection frame
+        }
+      }
+      // Loop as fast as possible (Real-time)
+      requestRef.current = requestAnimationFrame(detectLoop);
+    };
+
     const startCamera = async () => {
       try {
         const constraints = {
+          audio: false,
           video: {
             facingMode: 'environment',
-            width: { ideal: 1920 },
+            width: { ideal: 1920 }, // High Resolution for distance
             height: { ideal: 1080 },
-            focusMode: 'continuous'
+            // Request continuous focus specifically
+            advanced: [{ focusMode: 'continuous' }]
           }
         };
 
@@ -542,23 +563,9 @@ const NativeBarcodeScanner = ({ onScan, onError }) => {
         if (videoRef.current) {
           videoRef.current.srcObject = stream;
           await videoRef.current.play();
-
-          interval = setInterval(async () => {
-            if (videoRef.current && videoRef.current.readyState === videoRef.current.HAVE_ENOUGH_DATA) {
-              try {
-                if (barcodeDetector) {
-                  const barcodes = await barcodeDetector.detect(videoRef.current);
-                  if (barcodes.length > 0) {
-                    const code = barcodes[0].rawValue;
-                    if (code) {
-                      clearInterval(interval);
-                      onScan(code);
-                    }
-                  }
-                }
-              } catch (e) {}
-            }
-          }, 100);
+          
+          // Start the high-speed loop
+          requestRef.current = requestAnimationFrame(detectLoop);
         }
       } catch (err) {
         console.error("Camera Error", err);
@@ -571,7 +578,7 @@ const NativeBarcodeScanner = ({ onScan, onError }) => {
     startCamera();
 
     return () => {
-      if (interval) clearInterval(interval);
+      if (requestRef.current) cancelAnimationFrame(requestRef.current);
       if (stream) {
         stream.getTracks().forEach(track => track.stop());
       }
@@ -580,7 +587,14 @@ const NativeBarcodeScanner = ({ onScan, onError }) => {
 
   return (
     <div className="relative w-full h-full bg-black">
-      <video ref={videoRef} className="w-full h-full object-cover" playsInline muted />
+      <video 
+        ref={videoRef} 
+        className="w-full h-full object-cover" 
+        playsInline 
+        muted 
+      />
+      
+      {/* Visual Guides */}
       <div className="absolute inset-0 border-2 border-[#00695c]/50 pointer-events-none"></div>
       <div className="absolute top-1/2 left-1/2 -translate-x-1/2 -translate-y-1/2 w-64 h-40 border-2 border-red-500/50 rounded-lg pointer-events-none box-border shadow-[0_0_0_9999px_rgba(0,0,0,0.5)]">
         <div className="absolute top-0 left-0 w-4 h-4 border-t-4 border-l-4 border-red-500 -mt-1 -ml-1"></div>
@@ -588,6 +602,11 @@ const NativeBarcodeScanner = ({ onScan, onError }) => {
         <div className="absolute bottom-0 left-0 w-4 h-4 border-b-4 border-l-4 border-red-500 -mb-1 -ml-1"></div>
         <div className="absolute bottom-0 right-0 w-4 h-4 border-b-4 border-r-4 border-red-500 -mb-1 -mr-1"></div>
         <div className="absolute top-1/2 left-0 right-0 h-0.5 bg-red-500 opacity-50"></div>
+      </div>
+      <div className="absolute bottom-4 left-0 right-0 text-center">
+         <p className="text-white font-bold text-sm bg-black/50 inline-block px-3 py-1 rounded-full">
+            ضع الباركود داخل المربع
+         </p>
       </div>
     </div>
   );
