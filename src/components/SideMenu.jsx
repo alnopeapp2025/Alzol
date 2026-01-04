@@ -1,17 +1,110 @@
-import React from 'react';
+import React, { useState, useEffect } from 'react';
 import { motion, AnimatePresence } from 'framer-motion';
 import { 
   Save, RotateCcw, Trash2, Settings, 
-  Info, Star, Share2, Lock, Phone, X, LogIn, Crown 
+  Info, Star, Share2, Lock, Phone, X, LogIn, Crown, LogOut, CheckCircle 
 } from 'lucide-react';
 import { playSound } from '../utils/soundManager';
+import { supabase } from '../lib/supabaseClient';
+import { fetchData } from '../lib/dataService';
 
-export const SideMenu = ({ isOpen, onClose, onOpenRegistration, onNavigate, onOpenPro }) => {
+export const SideMenu = ({ isOpen, onClose, onOpenRegistration, onNavigate, onOpenPro, currentUser, onLogout }) => {
+  const [lastBackup, setLastBackup] = useState(null);
+  const [backupLoading, setBackupLoading] = useState(false);
+
+  useEffect(() => {
+    if (isOpen && currentUser) {
+      fetchLastBackup();
+    }
+  }, [isOpen, currentUser]);
+
+  const fetchLastBackup = async () => {
+    if (!currentUser) return;
+    const { data, error } = await supabase
+      .from('backups')
+      .select('created_at')
+      .eq('user_id', currentUser.id)
+      .order('created_at', { ascending: false })
+      .limit(1);
+
+    if (data && data.length > 0) {
+      const date = new Date(data[0].created_at);
+      const formatted = `${date.toLocaleDateString('en-GB')} ${date.toLocaleTimeString('en-US', { hour: '2-digit', minute: '2-digit' })}`;
+      setLastBackup(formatted);
+    }
+  };
+
+  const handleCreateBackup = async () => {
+    if (!currentUser) {
+      alert('يرجى تسجيل الدخول أولاً');
+      return;
+    }
+    setBackupLoading(true);
+    
+    try {
+      // Gather all user data
+      const [products, categories, sales, expenses, treasury, workers, wholesalers, customers, purchases] = await Promise.all([
+        fetchData('products'),
+        fetchData('categories'),
+        fetchData('sales'),
+        fetchData('expenses'),
+        fetchData('treasury_balances'),
+        fetchData('workers'),
+        fetchData('wholesalers'),
+        fetchData('customers'),
+        fetchData('purchases')
+      ]);
+
+      const filterByUser = (arr) => arr.filter(item => item.user_id == currentUser.id);
+
+      const backupPayload = {
+        products: filterByUser(products),
+        categories: filterByUser(categories),
+        sales: filterByUser(sales),
+        expenses: filterByUser(expenses),
+        treasury: filterByUser(treasury),
+        workers: filterByUser(workers),
+        wholesalers: filterByUser(wholesalers),
+        customers: filterByUser(customers),
+        purchases: filterByUser(purchases),
+        meta: {
+          username: currentUser.username,
+          backup_date: new Date().toISOString()
+        }
+      };
+
+      const { error } = await supabase.from('backups').insert([{
+        user_id: currentUser.id,
+        backup_data: backupPayload
+      }]);
+
+      if (!error) {
+        await fetchLastBackup();
+        alert('تم إنشاء النسخة الاحتياطية بنجاح');
+      } else {
+        alert('حدث خطأ أثناء النسخ الاحتياطي');
+      }
+    } catch (e) {
+      console.error(e);
+      alert('فشلت العملية');
+    } finally {
+      setBackupLoading(false);
+    }
+  };
+
   const menuGroups = [
     {
       title: 'بيانات العضوية',
       items: [
-        { 
+        currentUser ? { 
+          icon: LogOut, 
+          label: 'تسجيل خروج', 
+          color: '#d32f2f',
+          action: () => {
+            onClose();
+            if (onLogout) onLogout();
+          }
+        } : { 
           icon: LogIn, 
           label: 'تسجيل الدخول / جديد', 
           color: '#1976d2',
@@ -25,8 +118,14 @@ export const SideMenu = ({ isOpen, onClose, onOpenRegistration, onNavigate, onOp
     {
       title: 'بيانات النظام',
       items: [
-        { icon: Save, label: 'إنشاء نسخة احتياطية', color: '#388e3c', action: () => onClose() }, // Placeholder
-        { icon: RotateCcw, label: 'استعادة نسخة احتياطية', color: '#f57c00', action: () => onClose() }, // Placeholder
+        { 
+          icon: Save, 
+          label: backupLoading ? 'جاري النسخ...' : 'إنشاء نسخة احتياطية', 
+          color: '#388e3c', 
+          action: handleCreateBackup,
+          description: lastBackup ? `آخر نسخة كانت في ${lastBackup}` : null
+        },
+        { icon: RotateCcw, label: 'استعادة نسخة احتياطية', color: '#f57c00', action: () => onClose() }, 
         { 
           icon: Trash2, 
           label: 'حذف البيانات', 
@@ -50,11 +149,10 @@ export const SideMenu = ({ isOpen, onClose, onOpenRegistration, onNavigate, onOp
             onNavigate('settings');
           }
         },
-        // Pro Subscription Item - Gold & Pulsing
         {
           icon: Crown,
           label: 'اشتراك pro',
-          color: '#FFD700', // Gold
+          color: '#FFD700',
           isPro: true,
           action: () => {
             onClose();
@@ -123,20 +221,27 @@ export const SideMenu = ({ isOpen, onClose, onOpenRegistration, onNavigate, onOp
                       <button 
                         key={itemIdx}
                         onClick={() => {
-                          playSound('click'); // تشغيل الصوت عند النقر على عنصر القائمة
+                          playSound('click');
                           item.action && item.action();
                         }}
-                        className={`flex items-center gap-3 p-3 hover:bg-gray-50 rounded-xl transition-colors text-right w-full group active:bg-gray-100 ${item.isPro ? 'animate-pulse' : ''}`}
+                        className={`flex flex-col p-3 hover:bg-gray-50 rounded-xl transition-colors text-right w-full group active:bg-gray-100 ${item.isPro ? 'animate-pulse' : ''}`}
                       >
-                        <div 
-                          className="p-2 rounded-lg bg-gray-50 group-hover:bg-white shadow-sm transition-colors border border-gray-100"
-                          style={{ color: item.color }}
-                        >
-                          <item.icon size={20} strokeWidth={2} />
+                        <div className="flex items-center gap-3 w-full">
+                          <div 
+                            className="p-2 rounded-lg bg-gray-50 group-hover:bg-white shadow-sm transition-colors border border-gray-100"
+                            style={{ color: item.color }}
+                          >
+                            <item.icon size={20} strokeWidth={2} />
+                          </div>
+                          <span className={`text-gray-700 font-medium text-sm flex-1 ${item.isPro ? 'text-yellow-600 font-bold' : ''}`}>
+                            {item.label}
+                          </span>
                         </div>
-                        <span className={`text-gray-700 font-medium text-sm flex-1 ${item.isPro ? 'text-yellow-600 font-bold' : ''}`}>
-                          {item.label}
-                        </span>
+                        {item.description && (
+                          <span className="text-[10px] text-gray-400 mr-12 mt-1 font-medium">
+                            {item.description}
+                          </span>
+                        )}
                       </button>
                     ))}
                   </div>

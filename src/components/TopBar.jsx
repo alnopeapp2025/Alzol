@@ -55,7 +55,7 @@ export const TopBar = ({ onOpenRegistration, onNavigate, currentUser, onLogout, 
         {/* Right Side (Visually Left in RTL) - Login/User */}
         <div className="flex items-center gap-2 relative">
           {currentUser ? (
-            <div className="relative">
+            <div className="relative flex flex-col items-center">
               <button 
                 onClick={handleUserIconClick}
                 className="p-1 hover:bg-[#005c4b] rounded-full transition-colors active:scale-95 flex items-center justify-center"
@@ -66,6 +66,10 @@ export const TopBar = ({ onOpenRegistration, onNavigate, currentUser, onLogout, 
                   className="w-9 h-9 rounded-full border-2 border-white/50 shadow-sm bg-white"
                 />
               </button>
+              {/* Welcome Text - Thin Red */}
+              <span className="text-[10px] text-red-300 font-thin mt-0.5 leading-none absolute -bottom-3 w-max text-center shadow-sm">
+                مرحباً: {currentUser.username}
+              </span>
               
               {/* User Dropdown */}
               <AnimatePresence>
@@ -115,6 +119,8 @@ export const TopBar = ({ onOpenRegistration, onNavigate, currentUser, onLogout, 
         onOpenRegistration={onOpenRegistration}
         onNavigate={onNavigate}
         onOpenPro={onOpenPro}
+        currentUser={currentUser}
+        onLogout={onLogout}
       />
     </>
   );
