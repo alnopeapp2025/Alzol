@@ -38,9 +38,14 @@ export const AddProductScreen = ({ onBack, currentUser, onOpenRegistration }) =>
 
   const loadProducts = async () => {
     const data = await fetchData('products');
-    // إلغاء الفلترة: عرض جميع المنتجات لجميع المستخدمين (مثل الأصناف)
-    // Removed filtering logic to show all products regardless of user_id
-    setProducts(data || []);
+    if (data) {
+      // PRIVACY FILTER: Only show products for this user
+      // إعادة تفعيل الفلترة لضمان الخصوصية
+      const userProducts = currentUser 
+        ? data.filter(p => p.user_id == currentUser.id)
+        : data.filter(p => !p.user_id);
+      setProducts(userProducts);
+    }
   };
 
   const handleEditClick = (product) => {
@@ -49,14 +54,6 @@ export const AddProductScreen = ({ onBack, currentUser, onOpenRegistration }) =>
   };
 
   const handleAddNew = () => {
-    // Removed Guest Limit Logic as per "Cancel Offline/Restrictions" implication or just kept simple
-    // If strict guest limit is still needed, uncomment below:
-    /*
-    if (!currentUser && products.length >= 3) {
-      setShowGuestLimitModal(true);
-      return;
-    }
-    */
     setEditingProduct(null);
     setShowModal(true);
   };
@@ -68,7 +65,7 @@ export const AddProductScreen = ({ onBack, currentUser, onOpenRegistration }) =>
 
   const handleSuccess = (message) => {
     handleModalClose();
-    loadProducts(); // إعادة تحميل المنتجات فوراً لتظهر في القائمة
+    loadProducts(); 
     setToast({ show: true, message });
   };
 
@@ -188,7 +185,7 @@ export const AddProductScreen = ({ onBack, currentUser, onOpenRegistration }) =>
           })}
           {filteredProducts.length === 0 && (
             <div className="text-center text-gray-400 mt-10 font-medium">
-              لا توجد منتجات
+              {currentUser ? 'لا توجد منتجات مضافة' : 'لا توجد منتجات (وضع الزائر)'}
             </div>
           )}
         </div>
@@ -219,7 +216,13 @@ const ProductModal = ({ product, currentUser, onClose, onSuccess }) => {
   useEffect(() => {
     const fetchCats = async () => {
       const data = await fetchData('categories');
-      if (data) setCategories(data);
+      if (data) {
+         // Filter categories for dropdown
+         const userCats = currentUser 
+            ? data.filter(c => c.user_id == currentUser.id)
+            : data.filter(c => !c.user_id);
+         setCategories(userCats);
+      }
     };
     fetchCats();
 
@@ -234,7 +237,7 @@ const ProductModal = ({ product, currentUser, onClose, onSuccess }) => {
         category: product.category || 'عام'
       });
     }
-  }, [product]);
+  }, [product, currentUser]);
 
   const handleChange = (e) => setFormData({ ...formData, [e.target.name]: e.target.value });
 
@@ -247,7 +250,6 @@ const ProductModal = ({ product, currentUser, onClose, onSuccess }) => {
 
     const payload = {
       ...formData,
-      // We still save user_id for record keeping, but we don't filter by it anymore
       user_id: currentUser ? currentUser.id : null
     };
 
@@ -394,13 +396,11 @@ const ProductModal = ({ product, currentUser, onClose, onSuccess }) => {
           </div>
         </div>
         
-        {/* Reordered Fields: Purchase Price (Right) -> Selling Price (Left) */}
         <div className="flex gap-3">
              <div className="flex-1"><label className={labelStyles}>سعر الشراء</label><input name="purchase_price" value={formData.purchase_price} onChange={handleChange} type="number" className={inputStyles} placeholder="0.00" /></div>
              <div className="flex-1"><label className={labelStyles}>سعر البيع</label><input name="selling_price" value={formData.selling_price} onChange={handleChange} type="number" className={inputStyles} placeholder="0.00" /></div>
         </div>
 
-        {/* Merged Quantity and Alert */}
         <div className="flex gap-3">
            <div className="flex-1"><label className={labelStyles}>الكمية</label><input name="quantity" value={formData.quantity} onChange={handleChange} type="number" className={inputStyles} placeholder="0" /></div>
            <div className="flex-1"><label className={labelStyles}>تنبيه المخزون</label><input name="low_stock_alert" value={formData.low_stock_alert} onChange={handleChange} type="number" className={inputStyles} placeholder="5" /></div>
@@ -428,7 +428,6 @@ const ProductModal = ({ product, currentUser, onClose, onSuccess }) => {
           </select>
         </div>
         
-        {/* Add Button Centered Below Category */}
         <button type="submit" disabled={loading} className="w-full bg-[#00695c] text-white h-14 rounded-xl font-bold text-lg shadow-md hover:bg-[#005c4b] flex items-center justify-center gap-2 mt-2 shrink-0">
           <Save size={24} />
           <span>{product ? 'تحديث البيانات' : 'أضف منتج جديد'}</span>
@@ -440,7 +439,6 @@ const ProductModal = ({ product, currentUser, onClose, onSuccess }) => {
   );
 };
 
-// Standard Scanner Logic
 const ScannerComponent = ({ onScanSuccess, onPermissionError }) => {
   const scannerRef = useRef(null);
 
@@ -449,11 +447,13 @@ const ScannerComponent = ({ onScanSuccess, onPermissionError }) => {
     scannerRef.current = html5QrCode;
 
     const config = { 
-      fps: 10, 
+      fps: 50, 
       qrbox: { width: 250, height: 250 },
       aspectRatio: 1.0,
       videoConstraints: {
-        facingMode: "environment"
+        facingMode: "environment",
+        width: { ideal: 1280 },
+        height: { ideal: 720 }
       }
     };
     
@@ -465,9 +465,7 @@ const ScannerComponent = ({ onScanSuccess, onPermissionError }) => {
            onScanSuccess(decodedText);
         }).catch(err => console.error("Stop failed", err));
       },
-      (errorMessage) => {
-        // ignore frame errors
-      }
+      (errorMessage) => { }
     ).catch(err => {
       const isPermissionError = err?.name === 'NotAllowedError' || err?.name === 'NotFoundError' || err?.toString().includes('Permission');
       if (isPermissionError) {
@@ -481,9 +479,7 @@ const ScannerComponent = ({ onScanSuccess, onPermissionError }) => {
       if (scannerRef.current && scannerRef.current.isScanning) {
         scannerRef.current.stop().catch(err => console.warn("Cleanup stop failed", err));
       }
-      try {
-         scannerRef.current.clear();
-      } catch(e) { /* ignore */ }
+      try { scannerRef.current.clear(); } catch(e) { }
     };
   }, [onScanSuccess, onPermissionError]);
 

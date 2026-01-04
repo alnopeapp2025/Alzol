@@ -1,8 +1,8 @@
 import React, { useState, useEffect } from 'react';
 import { ArrowRight, Package, TrendingUp, DollarSign, AlertTriangle } from 'lucide-react';
-import { fetchData } from '../lib/dataService'; // Use Data Service for Offline Support
+import { fetchData } from '../lib/dataService'; 
 
-export const InventoryReportsScreen = ({ onBack }) => {
+export const InventoryReportsScreen = ({ onBack, currentUser }) => {
   const [stats, setStats] = useState({
     totalProductsCount: 0,
     totalPurchaseValue: 0,
@@ -13,12 +13,16 @@ export const InventoryReportsScreen = ({ onBack }) => {
 
   useEffect(() => {
     calculateInventoryStats();
-  }, []);
+  }, [currentUser]);
 
   const calculateInventoryStats = async () => {
     try {
-      // Use fetchData to support offline mode
-      const products = await fetchData('products');
+      const data = await fetchData('products');
+      
+      // PRIVACY FILTER
+      const products = currentUser 
+        ? data.filter(p => p.user_id == currentUser.id)
+        : data.filter(p => !p.user_id);
 
       let totalCount = 0;
       let totalPurchase = 0;
@@ -72,7 +76,6 @@ export const InventoryReportsScreen = ({ onBack }) => {
 
   return (
     <div className="h-screen flex flex-col bg-[#FFF9C4] overflow-hidden font-sans">
-      {/* Header */}
       <div className="bg-[#00695c] text-white h-16 flex items-center px-4 shadow-lg shrink-0 rounded-b-2xl z-10">
         <button 
           onClick={onBack}
@@ -83,43 +86,12 @@ export const InventoryReportsScreen = ({ onBack }) => {
         <h1 className="text-xl font-bold flex-1 text-center ml-10">تقارير المخزن</h1>
       </div>
 
-      {/* Content */}
       <div className="flex-1 overflow-y-auto p-4 pb-20 custom-scrollbar">
         <div className="flex flex-col gap-4">
-          
-          {/* Total Products Count */}
-          <StatCard 
-            title="عدد المنتجات (القطع)" 
-            value={stats.totalProductsCount} 
-            icon={Package} 
-            color="#1976d2" 
-          />
-
-          {/* Total Purchase Value - Updated Label */}
-          <StatCard 
-            title="مجموع تكلفة شراء المخزون" 
-            value={stats.totalPurchaseValue} 
-            icon={DollarSign} 
-            color="#f57c00" 
-          />
-
-          {/* Total Selling Value - Updated Label */}
-          <StatCard 
-            title="مجموع بيع المخزون" 
-            value={stats.totalSellingValue} 
-            icon={TrendingUp} 
-            color="#2e7d32" 
-          />
-
-          {/* Low Stock Alert */}
-          <StatCard 
-            title="منتجات قليلة (تنبيه)" 
-            value={stats.lowStockCount} 
-            icon={AlertTriangle} 
-            color="#d32f2f"
-            isAlert={true}
-          />
-
+          <StatCard title="عدد المنتجات (القطع)" value={stats.totalProductsCount} icon={Package} color="#1976d2" />
+          <StatCard title="مجموع تكلفة شراء المخزون" value={stats.totalPurchaseValue} icon={DollarSign} color="#f57c00" />
+          <StatCard title="مجموع بيع المخزون" value={stats.totalSellingValue} icon={TrendingUp} color="#2e7d32" />
+          <StatCard title="منتجات قليلة (تنبيه)" value={stats.lowStockCount} icon={AlertTriangle} color="#d32f2f" isAlert={true} />
         </div>
       </div>
     </div>

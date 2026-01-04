@@ -16,11 +16,14 @@ import { SystemDataScreen } from './screens/SystemDataScreen';
 import { SettingsScreen } from './screens/SettingsScreen';
 import { EditProfileScreen } from './screens/EditProfileScreen';
 import { WorkersScreen } from './screens/WorkersScreen';
-import { WholesalersScreen } from './screens/WholesalersScreen'; // New Screen
+import { WholesalersScreen } from './screens/WholesalersScreen';
+import { CustomersScreen } from './screens/CustomersScreen'; // New
+import { PurchasesScreen } from './screens/PurchasesScreen'; // New
+import { FinalReportsScreen } from './screens/FinalReportsScreen'; // New
 import { ProModal } from './components/ProModal';
 import { playSound } from './utils/soundManager';
 import { syncData } from './lib/dataService'; 
-import { Briefcase } from 'lucide-react'; // Import Briefcase for the icon override
+import { Briefcase } from 'lucide-react';
 
 function App() {
   const [currentScreen, setCurrentScreen] = useState('dashboard');
@@ -63,7 +66,6 @@ function App() {
     localStorage.setItem('app_user', JSON.stringify(updatedUser));
   };
 
-  // Override icon for "عمال ورواتب" (previously Settings)
   const allItems = [...screen1Data, ...screen2Data].map(item => {
     if (item.title === 'عمال ورواتب') {
       return { ...item, icon: Briefcase };
@@ -84,14 +86,20 @@ function App() {
       setCurrentScreen('expenses');
     } else if (title === 'المبيعات') {
       setCurrentScreen('sales');
+    } else if (title === 'المشتريات') {
+      setCurrentScreen('purchases'); // Now Active
     } else if (title === 'تقارير المخزن') {
       setCurrentScreen('inventory-reports');
+    } else if (title === 'التقارير النهائية') {
+      setCurrentScreen('final-reports'); // Now Active
     } else if (title === 'الآلة الحاسبة') {
       setIsCalculatorOpen(true);
-    } else if (title === 'عمال ورواتب') { // Renamed from Settings
-      setCurrentScreen('workers'); // Direct to Workers Screen as requested by "Settings -> Workers" change
+    } else if (title === 'عمال ورواتب') {
+      setCurrentScreen('workers');
     } else if (title === 'تجار الجملة') {
       setCurrentScreen('wholesalers');
+    } else if (title === 'العملاء') {
+      setCurrentScreen('customers'); // Now Active
     } else {
       console.log(`Clicked ${title}`);
     }
@@ -106,13 +114,16 @@ function App() {
   if (currentScreen === 'treasury') return <TreasuryScreen onBack={() => setCurrentScreen('dashboard')} />;
   if (currentScreen === 'expenses') return <ExpensesScreen onBack={() => setCurrentScreen('dashboard')} />;
   if (currentScreen === 'sales') return <SalesScreen onBack={() => setCurrentScreen('dashboard')} />;
-  if (currentScreen === 'inventory-reports') return <InventoryReportsScreen onBack={() => setCurrentScreen('dashboard')} />;
+  if (currentScreen === 'purchases') return <PurchasesScreen onBack={() => setCurrentScreen('dashboard')} currentUser={currentUser} />;
+  if (currentScreen === 'inventory-reports') return <InventoryReportsScreen onBack={() => setCurrentScreen('dashboard')} currentUser={currentUser} />;
+  if (currentScreen === 'final-reports') return <FinalReportsScreen onBack={() => setCurrentScreen('dashboard')} currentUser={currentUser} />;
   if (currentScreen === 'privacy-policy') return <PrivacyPolicyScreen onBack={() => setCurrentScreen('dashboard')} />;
   if (currentScreen === 'system-data') return <SystemDataScreen onBack={() => setCurrentScreen('dashboard')} />;
   if (currentScreen === 'settings') return <SettingsScreen onBack={() => setCurrentScreen('dashboard')} />;
   if (currentScreen === 'edit-profile') return <EditProfileScreen onBack={() => setCurrentScreen('dashboard')} currentUser={currentUser} onUpdateUser={handleUpdateUser} />;
   if (currentScreen === 'workers') return <WorkersScreen onBack={() => setCurrentScreen('dashboard')} />;
   if (currentScreen === 'wholesalers') return <WholesalersScreen onBack={() => setCurrentScreen('dashboard')} currentUser={currentUser} />;
+  if (currentScreen === 'customers') return <CustomersScreen onBack={() => setCurrentScreen('dashboard')} currentUser={currentUser} />;
 
   return (
     <div className="min-h-screen bg-[#FFF9C4] flex flex-col font-sans">
