@@ -6,7 +6,9 @@ const KEYS = {
   PRODUCTS: 'offline_products',
   SALES: 'offline_sales',
   EXPENSES: 'offline_expenses',
-  QUEUE: 'offline_sync_queue'
+  QUEUE: 'offline_sync_queue',
+  TREASURY: 'offline_treasury_balances',
+  WORKERS: 'offline_workers'
 };
 
 // التحقق من حالة الاتصال
@@ -84,27 +86,46 @@ export const insertData = async (table, payload) => {
   
   // تحديث محلي فوري (Optimistic UI)
   const currentData = JSON.parse(localStorage.getItem(localKey) || '[]');
-  // إنشاء ID مؤقت إذا لزم الأمر للعرض
-  const newItem = { ...payload, id: Date.now(), created_at: new Date().toISOString() }; 
+  // إنشاء ID مؤقت إذا لزم الأمر للعرض (نستخدم رقم عشوائي كبير لتجنب التكرار)
+  const tempId = Date.now() + Math.floor(Math.random() * 1000);
+  const newItem = { ...payload, id: tempId, created_at: new Date().toISOString() }; 
   const updatedData = [newItem, ...currentData];
   localStorage.setItem(localKey, JSON.stringify(updatedData));
 
   if (isOnline()) {
     try {
       const { data, error } = await supabase.from(table).insert([payload]).select();
-      if (!error && data) {
+      
+      if (error) {
+        console.error("Supabase Insert Error:", error);
+        // إذا كان الخطأ ليس بسبب الشبكة (مثلاً RLS أو بيانات خاطئة)، لا نعتبره أوفلاين
+        // ولكن للحفاظ على البيانات، سنضيفه للطابور إذا كان خطأ شبكة
+        throw error; 
+      }
+
+      if (data) {
         // تحديث العنصر المؤقت بالبيانات الحقيقية من السيرفر
         const realItem = data[0];
         const fixedData = updatedData.map(item => item.id === newItem.id ? realItem : item);
         localStorage.setItem(localKey, JSON.stringify(fixedData));
-        return { data: realItem, error: null };
+        return { data: realItem, error: null, isOffline: false };
       }
     } catch (e) {
-      console.warn('Online insert failed, adding to queue');
+      // التحقق هل هو خطأ شبكة فعلاً؟
+      const isNetworkError = e.message && (e.message.includes('Failed to fetch') || e.message.includes('NetworkError'));
+      
+      if (isNetworkError) {
+        console.warn('Network error, adding to queue');
+        addToQueue('INSERT', table, payload);
+        return { data: newItem, error: null, isOffline: true };
+      } else {
+        // خطأ برمجي أو في قاعدة البيانات - نعيد الخطأ للمستخدم
+        return { data: null, error: e, isOffline: false };
+      }
     }
   }
 
-  // إذا كنا أوفلاين أو فشل الاتصال
+  // إذا كنا أوفلاين تماماً
   addToQueue('INSERT', table, payload);
   return { data: newItem, error: null, isOffline: true };
 };
@@ -121,9 +142,17 @@ export const updateData = async (table, id, updates) => {
   if (isOnline()) {
     try {
       const { error } = await supabase.from(table).update(updates).eq('id', id);
-      if (!error) return { error: null };
+      if (error) throw error;
+      return { error: null, isOffline: false };
     } catch (e) {
-      console.warn('Online update failed, adding to queue');
+      const isNetworkError = e.message && (e.message.includes('Failed to fetch') || e.message.includes('NetworkError'));
+      
+      if (isNetworkError) {
+        addToQueue('UPDATE', table, { id, ...updates });
+        return { error: null, isOffline: true };
+      } else {
+        return { error: e, isOffline: false };
+      }
     }
   }
 
@@ -143,9 +172,17 @@ export const deleteData = async (table, id) => {
   if (isOnline()) {
     try {
       const { error } = await supabase.from(table).delete().eq('id', id);
-      if (!error) return { error: null };
+      if (error) throw error;
+      return { error: null, isOffline: false };
     } catch (e) {
-      console.warn('Online delete failed, adding to queue');
+      const isNetworkError = e.message && (e.message.includes('Failed to fetch') || e.message.includes('NetworkError'));
+      
+      if (isNetworkError) {
+        addToQueue('DELETE', table, { id });
+        return { error: null, isOffline: true };
+      } else {
+        return { error: e, isOffline: false };
+      }
     }
   }
 

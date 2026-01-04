@@ -85,7 +85,7 @@ export const ExpensesScreen = ({ onBack }) => {
       if (!error) {
         if (isOffline) isOfflineOp = true;
         
-        // Update Treasury
+        // Fix: Update Treasury Programmatically (Decrease)
         const treasuryData = await fetchData('treasury_balances');
         const balanceItem = treasuryData.find(d => d.name === selectedExpense.payment_method);
         if (balanceItem) {
@@ -108,6 +108,17 @@ export const ExpensesScreen = ({ onBack }) => {
 
       if (!error) {
         if (isOffline) isOfflineOp = true;
+
+        // Fix: Update Treasury Programmatically (Decrease)
+        // We do this manually to ensure offline support and immediate UI update
+        const treasuryData = await fetchData('treasury_balances');
+        const balanceItem = treasuryData.find(d => d.name === formData.payment_method);
+        if (balanceItem) {
+           await updateData('treasury_balances', balanceItem.id, {
+             amount: Number(balanceItem.amount) - amount
+           });
+        }
+
         setToast({ show: true, message: isOffline ? 'تم الحفظ (وضع عدم الاتصال)' : 'تمت إضافة المصروف بنجاح' });
       } else {
         alert('حدث خطأ أثناء الحفظ');

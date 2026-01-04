@@ -2,7 +2,7 @@ import React, { useState, useEffect, useCallback, useRef } from 'react';
 import { ArrowRight, Plus, Minus, ShoppingCart, X, Save, Printer, Share2, Trash2, ScanBarcode, Settings } from 'lucide-react';
 import { fetchData, insertData, updateData } from '../lib/dataService'; 
 import { Toast } from '../components/Toast';
-import { Html5Qrcode, Html5QrcodeSupportedFormats } from 'html5-qrcode';
+import html2pdf from 'html2pdf.js'; // Import html2pdf
 
 const playBeep = () => {
   try {
@@ -145,7 +145,7 @@ export const SalesScreen = ({ onBack }) => {
         invoice_id: invoiceId
       });
 
-      // 2. Update Inventory
+      // 2. Update Product Quantity
       const productRef = products.find(p => p.id === item.id);
       const { isOffline: prodOffline } = await updateData('products', item.id, { 
         quantity: productRef.quantity - item.quantity 
@@ -154,17 +154,19 @@ export const SalesScreen = ({ onBack }) => {
       if (saleOffline || prodOffline) isOfflineTransaction = true;
     }
 
-    // 3. Update Treasury (ADD TO SELECTED BANK)
+    // 3. Update Treasury (Fix: Programmatically Increase Treasury)
     const treasuryData = await fetchData('treasury_balances');
+    // Find bank by name (exact match)
     const balanceItem = treasuryData.find(d => d.name === paymentMethod);
 
     if (balanceItem) {
-      await updateData('treasury_balances', balanceItem.id, { 
+      const { isOffline: treasuryOffline } = await updateData('treasury_balances', balanceItem.id, { 
         amount: Number(balanceItem.amount) + totalAmount 
       });
+      if (treasuryOffline) isOfflineTransaction = true;
     } else {
-      // Fallback if bank not found (shouldn't happen if names match)
-      console.warn("Bank not found for payment method:", paymentMethod);
+      console.warn("Bank not found for update:", paymentMethod);
+      // Optional: Add logic to create bank entry if missing or handle 'Cash' if not in DB
     }
 
     setLoading(false);
@@ -184,9 +186,7 @@ export const SalesScreen = ({ onBack }) => {
     loadData();
     
     if (isOfflineTransaction) {
-      setToast({ show: true, message: 'تم حفظ العملية وإضافتها للخزينة (وضع عدم الاتصال)' });
-    } else {
-      setToast({ show: true, message: 'تمت العملية وإضافتها للخزينة بنجاح' });
+      setToast({ show: true, message: 'تم حفظ العملية (وضع عدم الاتصال)' });
     }
   };
 
@@ -200,29 +200,41 @@ export const SalesScreen = ({ onBack }) => {
     setShowInvoice(true);
   };
 
-  // Browser Print
-  const handlePrint = () => {
+  // --- ROBUST PRINT & SHARE FOR APK ---
+
+  const generatePDF = async () => {
+    const element = document.getElementById('invoice-content');
+    const opt = {
+      margin: 0,
+      filename: `invoice_${selectedInvoice.id}.pdf`,
+      image: { type: 'jpeg', quality: 0.98 },
+      html2canvas: { scale: 2, useCORS: true },
+      jsPDF: { unit: 'mm', format: 'a6', orientation: 'portrait' } // A6 is receipt size
+    };
+    return html2pdf().set(opt).from(element);
+  };
+
+  const handlePrint = async () => {
     playBeep();
+    // Reverted to window.print() as requested for Browser support
     window.print();
   };
 
-  // Browser Share
   const handleShare = async () => {
     playBeep();
-    const text = `*فاتورة مبيعات*\nرقم: #${selectedInvoice.id}\nالمبلغ: ${selectedInvoice.total.toLocaleString()}\nالتاريخ: ${selectedInvoice.date}`;
-    
+    // Reverted to navigator.share as requested for Browser support
     if (navigator.share) {
       try {
         await navigator.share({
           title: 'فاتورة مبيعات',
-          text: text
+          text: `فاتورة رقم #${selectedInvoice.id}\nالمبلغ: ${selectedInvoice.total.toLocaleString()}`,
+          url: window.location.href
         });
       } catch (error) {
-        console.log('Error sharing', error);
+        console.log('Error sharing:', error);
       }
     } else {
-      const url = `https://wa.me/?text=${encodeURIComponent(text)}`;
-      window.open(url, '_blank');
+      alert('المشاركة غير مدعومة في هذا المتصفح');
     }
   };
 
@@ -302,26 +314,20 @@ export const SalesScreen = ({ onBack }) => {
       {/* Scanner Overlay */}
       {showScanner && (
         <div className="absolute inset-0 z-[70] bg-black flex flex-col items-center justify-center p-4 print:hidden">
-           <div className="w-full max-w-sm relative">
+           <div className="w-full max-w-sm relative h-full flex flex-col justify-center">
              <button 
                onClick={handleCloseScanner}
-               className="absolute -top-12 right-0 z-20 bg-white/20 p-2 rounded-full text-white hover:bg-white/40"
+               className="absolute top-4 right-4 z-20 bg-white/20 p-2 rounded-full text-white hover:bg-white/40"
              >
                <X size={24} />
              </button>
              
-             <div className="bg-black rounded-3xl overflow-hidden relative min-h-[350px] border-4 border-[#00695c] shadow-2xl">
+             <div className="bg-black rounded-3xl overflow-hidden relative w-full aspect-[3/4] border-4 border-[#00695c] shadow-2xl">
                 {!permissionDenied ? (
-                  <>
-                    <div id="reader" className="w-full h-full"></div>
-                    <ScannerComponent 
-                      onScanSuccess={handleScanSuccess} 
-                      onPermissionError={handlePermissionError} 
-                    />
-                    <div className="absolute bottom-4 left-0 right-0 text-center">
-                      <p className="text-white/80 text-sm font-bold animate-pulse">جاري البحث عن باركود...</p>
-                    </div>
-                  </>
+                  <NativeBarcodeScanner 
+                    onScan={handleScanSuccess} 
+                    onError={handlePermissionError} 
+                  />
                 ) : (
                   <div className="absolute inset-0 bg-gray-900 flex flex-col items-center justify-center p-6 text-center text-white">
                     <div className="w-20 h-20 bg-[#00695c] rounded-full flex items-center justify-center mb-6 shadow-lg animate-pulse">
@@ -344,6 +350,7 @@ export const SalesScreen = ({ onBack }) => {
         </div>
       )}
 
+      {/* Invoice List */}
       <div className="px-4 py-3 flex items-center gap-2 text-[#00695c] font-bold text-xs border-b border-[#00695c]/10 shrink-0 bg-[#FFF9C4] print:hidden">
         <div className="w-8 text-center">ت</div>
         <div className="flex-1 text-center">رقم الفاتورة</div>
@@ -497,54 +504,109 @@ export const SalesScreen = ({ onBack }) => {
   );
 };
 
-// Reverted to Standard Scanner Logic (First Working Version)
-const ScannerComponent = ({ onScanSuccess, onPermissionError }) => {
-  const scannerRef = useRef(null);
+// --- ULTRA FAST NATIVE SCANNER (TeaCapps Style) ---
+const NativeBarcodeScanner = ({ onScan, onError }) => {
+  const videoRef = useRef(null);
+  const requestRef = useRef(null);
 
   useEffect(() => {
-    const html5QrCode = new Html5Qrcode("reader");
-    scannerRef.current = html5QrCode;
+    if (!('BarcodeDetector' in window)) {
+      console.warn("BarcodeDetector not supported.");
+      // Fallback logic could go here
+    }
 
-    // Standard Configuration (Reliable)
-    const config = { 
-      fps: 10, // Standard FPS
-      qrbox: { width: 250, height: 250 },
-      aspectRatio: 1.0,
-      // Removed experimental features for stability
-      videoConstraints: {
-        facingMode: "environment"
+    let stream = null;
+    let barcodeDetector = null;
+
+    if ('BarcodeDetector' in window) {
+      // @ts-ignore
+      barcodeDetector = new window.BarcodeDetector({
+        formats: ['ean_13', 'ean_8', 'upc_a', 'upc_e', 'code_128', 'qr_code']
+      });
+    }
+
+    const detectLoop = async () => {
+      if (videoRef.current && videoRef.current.readyState === videoRef.current.HAVE_ENOUGH_DATA && barcodeDetector) {
+        try {
+          const barcodes = await barcodeDetector.detect(videoRef.current);
+          if (barcodes.length > 0) {
+            const code = barcodes[0].rawValue;
+            if (code) {
+              onScan(code);
+              return; // Stop loop on success
+            }
+          }
+        } catch (e) {
+          // Ignore errors during detection frame
+        }
+      }
+      // Loop as fast as possible (Real-time)
+      requestRef.current = requestAnimationFrame(detectLoop);
+    };
+
+    const startCamera = async () => {
+      try {
+        const constraints = {
+          audio: false,
+          video: {
+            facingMode: 'environment',
+            width: { ideal: 1920 }, // High Resolution for distance
+            height: { ideal: 1080 },
+            // Request continuous focus specifically
+            advanced: [{ focusMode: 'continuous' }]
+          }
+        };
+
+        stream = await navigator.mediaDevices.getUserMedia(constraints);
+        
+        if (videoRef.current) {
+          videoRef.current.srcObject = stream;
+          await videoRef.current.play();
+          
+          // Start the high-speed loop
+          requestRef.current = requestAnimationFrame(detectLoop);
+        }
+      } catch (err) {
+        console.error("Camera Error", err);
+        if (err.name === 'NotAllowedError' || err.name === 'NotFoundError') {
+          onError();
+        }
       }
     };
-    
-    html5QrCode.start(
-      { facingMode: "environment" }, 
-      config,
-      (decodedText) => {
-        html5QrCode.stop().then(() => {
-           onScanSuccess(decodedText);
-        }).catch(err => console.error("Stop failed", err));
-      },
-      (errorMessage) => {
-        // ignore frame errors
-      }
-    ).catch(err => {
-      const isPermissionError = err?.name === 'NotAllowedError' || err?.name === 'NotFoundError' || err?.toString().includes('Permission');
-      if (isPermissionError) {
-        onPermissionError();
-      } else {
-        console.error("Error starting scanner", err);
-      }
-    });
+
+    startCamera();
 
     return () => {
-      if (scannerRef.current && scannerRef.current.isScanning) {
-        scannerRef.current.stop().catch(err => console.warn("Cleanup stop failed", err));
+      if (requestRef.current) cancelAnimationFrame(requestRef.current);
+      if (stream) {
+        stream.getTracks().forEach(track => track.stop());
       }
-      try {
-         scannerRef.current.clear();
-      } catch(e) { /* ignore */ }
     };
-  }, [onScanSuccess, onPermissionError]);
+  }, [onScan, onError]);
 
-  return null;
+  return (
+    <div className="relative w-full h-full bg-black">
+      <video 
+        ref={videoRef} 
+        className="w-full h-full object-cover" 
+        playsInline 
+        muted 
+      />
+      
+      {/* Visual Guides */}
+      <div className="absolute inset-0 border-2 border-[#00695c]/50 pointer-events-none"></div>
+      <div className="absolute top-1/2 left-1/2 -translate-x-1/2 -translate-y-1/2 w-64 h-40 border-2 border-red-500/50 rounded-lg pointer-events-none box-border shadow-[0_0_0_9999px_rgba(0,0,0,0.5)]">
+        <div className="absolute top-0 left-0 w-4 h-4 border-t-4 border-l-4 border-red-500 -mt-1 -ml-1"></div>
+        <div className="absolute top-0 right-0 w-4 h-4 border-t-4 border-r-4 border-red-500 -mt-1 -mr-1"></div>
+        <div className="absolute bottom-0 left-0 w-4 h-4 border-b-4 border-l-4 border-red-500 -mb-1 -ml-1"></div>
+        <div className="absolute bottom-0 right-0 w-4 h-4 border-b-4 border-r-4 border-red-500 -mb-1 -mr-1"></div>
+        <div className="absolute top-1/2 left-0 right-0 h-0.5 bg-red-500 opacity-50"></div>
+      </div>
+      <div className="absolute bottom-4 left-0 right-0 text-center">
+         <p className="text-white font-bold text-sm bg-black/50 inline-block px-3 py-1 rounded-full">
+            ضع الباركود داخل المربع
+         </p>
+      </div>
+    </div>
+  );
 };
