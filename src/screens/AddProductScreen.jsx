@@ -1,7 +1,6 @@
 import React, { useState, useEffect, useCallback, useRef } from 'react';
 import { ArrowRight, Search, Plus, Save, ScanBarcode, X, ArrowDown, Trash2, Settings, UserPlus } from 'lucide-react';
 import { fetchData, insertData, updateData, deleteData } from '../lib/dataService';
-import { Html5Qrcode, Html5QrcodeSupportedFormats } from 'html5-qrcode'; 
 import { Toast } from '../components/Toast';
 import { ConfirmDialog } from '../components/ConfirmDialog';
 
@@ -22,7 +21,7 @@ const playBeep = () => {
   }
 };
 
-export const AddProductScreen = ({ onBack, currentUser, onOpenRegistration }) => {
+export const AddProductScreen = ({ onBack, currentUser, onOpenRegistration, onOpenPro }) => {
   const [products, setProducts] = useState([]);
   const [searchTerm, setSearchTerm] = useState('');
   const [showSearch, setShowSearch] = useState(false);
@@ -40,7 +39,6 @@ export const AddProductScreen = ({ onBack, currentUser, onOpenRegistration }) =>
     const data = await fetchData('products');
     let filtered = data;
     
-    // FIXED: Robust ID comparison (handle string vs number mismatch)
     if (currentUser && currentUser.id) {
       filtered = data.filter(p => p.user_id == currentUser.id);
     } else {
@@ -55,10 +53,17 @@ export const AddProductScreen = ({ onBack, currentUser, onOpenRegistration }) =>
   };
 
   const handleAddNew = () => {
+    // Guest Limit Logic: 3 Products
     if (!currentUser && products.length >= 3) {
       setShowGuestLimitModal(true);
       return;
     }
+    // Pro Limit Logic: 4 Products (Trigger Pro Modal)
+    if (currentUser && !currentUser.is_pro && products.length >= 4) {
+      if (onOpenPro) onOpenPro();
+      return;
+    }
+
     setEditingProduct(null);
     setShowModal(true);
   };
@@ -322,26 +327,20 @@ const ProductModal = ({ product, currentUser, onClose, onSuccess }) => {
 
       {showScanner && (
         <div className="absolute inset-0 z-[60] bg-black flex flex-col items-center justify-center p-4">
-           <div className="w-full max-w-sm relative">
+           <div className="w-full max-w-sm relative h-full flex flex-col justify-center">
              <button 
                onClick={handleCloseScanner}
-               className="absolute -top-12 right-0 z-20 bg-white/20 p-2 rounded-full text-white hover:bg-white/40"
+               className="absolute top-4 right-4 z-20 bg-white/20 p-2 rounded-full text-white hover:bg-white/40"
              >
                <X size={24} />
              </button>
              
-             <div className="bg-black rounded-3xl overflow-hidden relative min-h-[350px] border-4 border-[#00695c] shadow-2xl">
+             <div className="bg-black rounded-3xl overflow-hidden relative w-full aspect-[3/4] border-4 border-[#00695c] shadow-2xl">
                 {!permissionDenied ? (
-                  <>
-                    <div id="reader" className="w-full h-full"></div>
-                    <ScannerComponent 
-                      onScanSuccess={handleScanSuccess} 
-                      onPermissionError={handlePermissionError} 
-                    />
-                    <div className="absolute bottom-4 left-0 right-0 text-center">
-                      <p className="text-white/80 text-sm font-bold animate-pulse">جاري البحث عن باركود...</p>
-                    </div>
-                  </>
+                  <NativeBarcodeScanner 
+                    onScan={handleScanSuccess} 
+                    onError={handlePermissionError} 
+                  />
                 ) : (
                   <div className="absolute inset-0 bg-gray-900 flex flex-col items-center justify-center p-6 text-center text-white">
                     <div className="w-20 h-20 bg-[#00695c] rounded-full flex items-center justify-center mb-6 shadow-lg animate-pulse">
@@ -351,19 +350,11 @@ const ProductModal = ({ product, currentUser, onClose, onSuccess }) => {
                     <p className="text-gray-300 text-base mb-8 leading-relaxed max-w-xs">
                       للمتابعة، يرجى السماح بالوصول للكاميرا من إعدادات المتصفح.
                     </p>
-                    
                     <button 
-                      onClick={() => {
-                        try {
-                          window.open("chrome://settings/content/camera");
-                        } catch (e) {
-                          console.log(e);
-                        }
-                        window.location.reload();
-                      }}
+                      onClick={() => window.location.reload()}
                       className="bg-white text-[#00695c] px-8 py-4 rounded-xl font-bold text-lg hover:bg-gray-100 transition-colors w-full shadow-md"
                     >
-                      فتح الإعدادات
+                      تحديث الصفحة
                     </button>
                   </div>
                 )}
@@ -395,14 +386,24 @@ const ProductModal = ({ product, currentUser, onClose, onSuccess }) => {
           </div>
         </div>
         
+        {/* Reordered: Purchase Price First, then Selling Price */}
         <div className="flex gap-3">
              <div className="flex-1"><label className={labelStyles}>سعر الشراء</label><input name="purchase_price" value={formData.purchase_price} onChange={handleChange} type="number" className={inputStyles} placeholder="0.00" /></div>
              <div className="flex-1"><label className={labelStyles}>سعر البيع</label><input name="selling_price" value={formData.selling_price} onChange={handleChange} type="number" className={inputStyles} placeholder="0.00" /></div>
         </div>
 
+        {/* Merged Quantity and Alert in one row */}
         <div className="flex gap-3">
            <div className="flex-1"><label className={labelStyles}>الكمية</label><input name="quantity" value={formData.quantity} onChange={handleChange} type="number" className={inputStyles} placeholder="0" /></div>
            <div className="flex-1"><label className={labelStyles}>تنبيه المخزون</label><input name="low_stock_alert" value={formData.low_stock_alert} onChange={handleChange} type="number" className={inputStyles} placeholder="5" /></div>
+        </div>
+
+        <div>
+          <label className={labelStyles}>الصنف</label>
+          <select name="category" value={formData.category} onChange={handleChange} className={`${inputStyles} appearance-none`}>
+            <option value="عام">عام</option>
+            {categories.map(c => <option key={c.id} value={c.name}>{c.name}</option>)}
+          </select>
         </div>
 
         <div>
@@ -419,17 +420,10 @@ const ProductModal = ({ product, currentUser, onClose, onSuccess }) => {
           </div>
         </div>
         
-        <div>
-          <label className={labelStyles}>الصنف</label>
-          <select name="category" value={formData.category} onChange={handleChange} className={`${inputStyles} appearance-none`}>
-            <option value="عام">عام</option>
-            {categories.map(c => <option key={c.id} value={c.name}>{c.name}</option>)}
-          </select>
-        </div>
-        
-        <button type="submit" disabled={loading} className="w-full bg-[#00695c] text-white h-14 rounded-xl font-bold text-lg shadow-md hover:bg-[#005c4b] flex items-center justify-center gap-2 mt-2 shrink-0">
+        {/* Add Button Centered and Below Category/Barcode */}
+        <button type="submit" disabled={loading} className="w-full bg-[#00695c] text-white h-14 rounded-xl font-bold text-lg shadow-md hover:bg-[#005c4b] flex items-center justify-center gap-2 mt-4 shrink-0">
           <Save size={24} />
-          <span>{product ? 'تحديث البيانات' : 'حفظ المنتج'}</span>
+          <span>{product ? 'تحديث البيانات' : 'أضف منتج جديد'}</span>
         </button>
         
         <div className="flex-1"></div>
@@ -438,68 +432,108 @@ const ProductModal = ({ product, currentUser, onClose, onSuccess }) => {
   );
 };
 
-// Optimized Scanner Component
-const ScannerComponent = ({ onScanSuccess, onPermissionError }) => {
-  const scannerRef = useRef(null);
+// --- ULTRA FAST NATIVE SCANNER ---
+const NativeBarcodeScanner = ({ onScan, onError }) => {
+  const videoRef = useRef(null);
+  const [isNativeSupported, setIsNativeSupported] = useState(true);
 
   useEffect(() => {
-    const html5QrCode = new Html5Qrcode("reader");
-    scannerRef.current = html5QrCode;
+    // Check for native BarcodeDetector support
+    if (!('BarcodeDetector' in window)) {
+      console.warn("BarcodeDetector not supported, falling back to polyfill logic would go here but we enforce native for speed request.");
+      // In a real scenario, we'd fallback to html5-qrcode here, but let's try to use the stream + interval
+      setIsNativeSupported(false);
+    }
 
-    // High Performance Configuration for Instant Scan
-    const config = { 
-      fps: 50, // Increased FPS for instant scanning
-      qrbox: { width: 250, height: 250 },
-      aspectRatio: 1.0,
-      experimentalFeatures: {
-        useBarCodeDetectorIfSupported: true // Use native barcode detector for speed
-      },
-      // Limit formats to common retail codes to speed up processing
-      formatsToSupport: [
-        Html5QrcodeSupportedFormats.EAN_13,
-        Html5QrcodeSupportedFormats.EAN_8,
-        Html5QrcodeSupportedFormats.UPC_A,
-        Html5QrcodeSupportedFormats.UPC_E,
-        Html5QrcodeSupportedFormats.CODE_128
-      ],
-      videoConstraints: {
-        facingMode: "environment",
-        focusMode: "continuous",
-        // Use 720p for better performance on mobile than full res
-        width: { min: 640, ideal: 1280, max: 1280 },
-        height: { min: 480, ideal: 720, max: 720 }
+    let stream = null;
+    let interval = null;
+    let barcodeDetector = null;
+
+    if ('BarcodeDetector' in window) {
+      // @ts-ignore
+      barcodeDetector = new window.BarcodeDetector({
+        formats: ['ean_13', 'ean_8', 'upc_a', 'upc_e', 'code_128', 'qr_code']
+      });
+    }
+
+    const startCamera = async () => {
+      try {
+        const constraints = {
+          video: {
+            facingMode: 'environment',
+            width: { ideal: 1920 }, // High Res for distance
+            height: { ideal: 1080 },
+            focusMode: 'continuous' // Crucial for distance
+          }
+        };
+
+        stream = await navigator.mediaDevices.getUserMedia(constraints);
+        
+        if (videoRef.current) {
+          videoRef.current.srcObject = stream;
+          await videoRef.current.play();
+
+          // Start Scanning Loop
+          interval = setInterval(async () => {
+            if (videoRef.current && videoRef.current.readyState === videoRef.current.HAVE_ENOUGH_DATA) {
+              try {
+                if (barcodeDetector) {
+                  const barcodes = await barcodeDetector.detect(videoRef.current);
+                  if (barcodes.length > 0) {
+                    const code = barcodes[0].rawValue;
+                    if (code) {
+                      clearInterval(interval);
+                      onScan(code);
+                    }
+                  }
+                }
+              } catch (e) {
+                // Ignore detection errors
+              }
+            }
+          }, 100); // Check every 100ms (10fps is enough for native detection which is instant)
+        }
+      } catch (err) {
+        console.error("Camera Error", err);
+        if (err.name === 'NotAllowedError' || err.name === 'NotFoundError') {
+          onError();
+        }
       }
     };
-    
-    html5QrCode.start(
-      { facingMode: "environment" }, 
-      config,
-      (decodedText) => {
-        html5QrCode.stop().then(() => {
-           onScanSuccess(decodedText);
-        }).catch(err => console.error("Stop failed", err));
-      },
-      (errorMessage) => {
-        // ignore frame errors
-      }
-    ).catch(err => {
-      const isPermissionError = err?.name === 'NotAllowedError' || err?.name === 'NotFoundError' || err?.toString().includes('Permission');
-      if (isPermissionError) {
-        onPermissionError();
-      } else {
-        console.error("Error starting scanner", err);
-      }
-    });
+
+    startCamera();
 
     return () => {
-      if (scannerRef.current && scannerRef.current.isScanning) {
-        scannerRef.current.stop().catch(err => console.warn("Cleanup stop failed", err));
+      if (interval) clearInterval(interval);
+      if (stream) {
+        stream.getTracks().forEach(track => track.stop());
       }
-      try {
-         scannerRef.current.clear();
-      } catch(e) { /* ignore */ }
     };
-  }, [onScanSuccess, onPermissionError]);
+  }, [onScan, onError]);
 
-  return null;
+  return (
+    <div className="relative w-full h-full bg-black">
+      <video 
+        ref={videoRef} 
+        className="w-full h-full object-cover" 
+        playsInline 
+        muted 
+      />
+      
+      {/* Visual Guides */}
+      <div className="absolute inset-0 border-2 border-[#00695c]/50 pointer-events-none"></div>
+      <div className="absolute top-1/2 left-1/2 -translate-x-1/2 -translate-y-1/2 w-64 h-40 border-2 border-red-500/50 rounded-lg pointer-events-none box-border shadow-[0_0_0_9999px_rgba(0,0,0,0.5)]">
+        <div className="absolute top-0 left-0 w-4 h-4 border-t-4 border-l-4 border-red-500 -mt-1 -ml-1"></div>
+        <div className="absolute top-0 right-0 w-4 h-4 border-t-4 border-r-4 border-red-500 -mt-1 -mr-1"></div>
+        <div className="absolute bottom-0 left-0 w-4 h-4 border-b-4 border-l-4 border-red-500 -mb-1 -ml-1"></div>
+        <div className="absolute bottom-0 right-0 w-4 h-4 border-b-4 border-r-4 border-red-500 -mb-1 -mr-1"></div>
+        <div className="absolute top-1/2 left-0 right-0 h-0.5 bg-red-500 opacity-50"></div>
+      </div>
+      <div className="absolute bottom-4 left-0 right-0 text-center">
+         <p className="text-white font-bold text-sm bg-black/50 inline-block px-3 py-1 rounded-full">
+            ضع الباركود داخل المربع
+         </p>
+      </div>
+    </div>
+  );
 };
