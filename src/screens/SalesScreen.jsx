@@ -2,6 +2,7 @@ import React, { useState, useEffect } from 'react';
 import { ArrowRight, Plus, Minus, ShoppingCart, X, Save, Printer, Share2, Trash2, ScanBarcode } from 'lucide-react';
 import { fetchData, insertData, updateData } from '../lib/dataService'; // Use Data Service for Offline
 import { Toast } from '../components/Toast';
+import html2pdf from 'html2pdf.js'; // Import PDF Library
 
 // Sound Utility
 const playBeep = () => {
@@ -184,20 +185,63 @@ export const SalesScreen = ({ onBack }) => {
     }
   };
 
+  // --- Print Logic (PDF Fallback for APK) ---
   const handlePrint = () => {
     playBeep();
-    window.print();
+    
+    // Try to generate PDF and save it (Works in APK/Mobile)
+    const element = document.getElementById('invoice-content');
+    if (element) {
+      const opt = {
+        margin: 0.5,
+        filename: `invoice-${lastInvoice.id}.pdf`,
+        image: { type: 'jpeg', quality: 0.98 },
+        html2canvas: { scale: 2, useCORS: true },
+        jsPDF: { unit: 'in', format: 'a4', orientation: 'portrait' }
+      };
+      
+      // Generate and save
+      html2pdf().set(opt).from(element).save().catch(err => {
+        console.error("PDF generation failed", err);
+        // Fallback to standard print if PDF fails
+        window.print();
+      });
+    } else {
+      window.print();
+    }
   };
 
+  // --- Share Logic (WhatsApp Fallback) ---
   const handleShare = () => {
     playBeep();
+    
+    // Construct Invoice Text
+    let text = `*فاتورة مبيعات*\n`;
+    text += `رقم الفاتورة: #${lastInvoice.id}\n`;
+    text += `التاريخ: ${lastInvoice.date}\n`;
+    text += `طريقة الدفع: ${lastInvoice.method}\n`;
+    text += `----------------\n`;
+    lastInvoice.items.forEach(item => {
+      text += `${item.name} (x${item.quantity}) - ${(item.selling_price * item.quantity).toLocaleString()}\n`;
+    });
+    text += `----------------\n`;
+    text += `*المجموع الكلي: ${lastInvoice.total.toLocaleString()} ج.س*\n`;
+
+    // Try Web Share API first
     if (navigator.share) {
       navigator.share({
         title: 'فاتورة مبيعات',
-        text: `فاتورة رقم ${lastInvoice.id} - المبلغ: ${lastInvoice.total}`,
-      }).catch(console.error);
+        text: text,
+      }).catch((error) => {
+        // If user cancels or share fails, fallback to WhatsApp
+        console.log('Share failed or cancelled, trying WhatsApp fallback...');
+        const whatsappUrl = `https://wa.me/?text=${encodeURIComponent(text)}`;
+        window.open(whatsappUrl, '_blank');
+      });
     } else {
-      alert('المشاركة غير مدعومة في هذا المتصفح');
+      // Fallback for APK/Desktop where navigator.share might be missing
+      const whatsappUrl = `https://wa.me/?text=${encodeURIComponent(text)}`;
+      window.open(whatsappUrl, '_blank');
     }
   };
 
@@ -354,7 +398,8 @@ export const SalesScreen = ({ onBack }) => {
         <div className="fixed inset-0 z-[60] flex items-center justify-center p-4">
           <div className="absolute inset-0 bg-black/60 backdrop-blur-sm" onClick={() => setShowInvoice(false)} />
           <div className="bg-white w-full max-w-sm rounded-none sm:rounded-lg shadow-2xl overflow-hidden relative z-10 animate-in zoom-in duration-200 print:w-full print:h-full print:fixed print:inset-0">
-            <div className="p-8 text-center bg-white">
+            {/* ID added for PDF generation */}
+            <div id="invoice-content" className="p-8 text-center bg-white">
               <div className="w-16 h-16 bg-[#00695c] rounded-full flex items-center justify-center mx-auto mb-4 text-white"><ShoppingCart size={32} /></div>
               <h2 className="text-2xl font-bold text-gray-800 mb-1">فاتورة مبيعات</h2>
               <p className="text-gray-500 text-sm mb-6">رقم الفاتورة: #{lastInvoice.id}</p>
@@ -373,11 +418,15 @@ export const SalesScreen = ({ onBack }) => {
               <div className="border-t-2 border-dashed border-gray-300 pt-4 mb-8">
                 <div className="flex justify-between items-center"><span className="font-bold text-xl text-gray-800">المجموع الكلي</span><span className="font-black text-2xl text-[#00695c]">{lastInvoice.total.toLocaleString()}</span></div>
               </div>
-              <div className="flex gap-3 print:hidden">
+            </div>
+            
+            {/* Buttons Area (Excluded from PDF by being outside the ID div, or handled by PDF logic) */}
+            <div className="p-4 bg-gray-50 border-t border-gray-100">
+               <div className="flex gap-3 print:hidden">
                 <button onClick={handlePrint} className="flex-1 bg-gray-800 text-white h-12 rounded-xl font-bold flex items-center justify-center gap-2 hover:bg-gray-900"><Printer size={20} /> طباعة</button>
                 <button onClick={handleShare} className="flex-1 bg-[#00695c] text-white h-12 rounded-xl font-bold flex items-center justify-center gap-2 hover:bg-[#005c4b]"><Share2 size={20} /> إرسال</button>
               </div>
-              <button onClick={() => setShowInvoice(false)} className="mt-4 text-gray-400 hover:text-gray-600 text-sm font-medium print:hidden">إغلاق</button>
+              <button onClick={() => setShowInvoice(false)} className="mt-4 w-full text-gray-400 hover:text-gray-600 text-sm font-medium print:hidden">إغلاق</button>
             </div>
           </div>
         </div>
