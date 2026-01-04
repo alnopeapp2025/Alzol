@@ -30,7 +30,7 @@ export const SideMenu = ({ isOpen, onClose, onOpenRegistration, onNavigate, onOp
 
       if (data && data.length > 0) {
         const date = new Date(data[0].created_at);
-        // تنسيق التاريخ والوقت بالعربية
+        // تنسيق التاريخ والوقت
         const formattedDate = date.toLocaleDateString('ar-EG', { year: 'numeric', month: 'numeric', day: 'numeric' });
         const formattedTime = date.toLocaleTimeString('ar-EG', { hour: '2-digit', minute: '2-digit' });
         setLastBackup(`${formattedDate} ${formattedTime}`);
@@ -42,13 +42,14 @@ export const SideMenu = ({ isOpen, onClose, onOpenRegistration, onNavigate, onOp
 
   const handleCreateBackup = async () => {
     if (!currentUser) {
-      alert('يرجى تسجيل الدخول أولاً');
+      alert('يرجى تسجيل الدخول أولاً لإنشاء نسخة احتياطية');
       return;
     }
     setBackupLoading(true);
     
     try {
-      // Gather all user data
+      // 1. جلب كافة البيانات من جميع الجداول
+      // Fetch all data from all tables
       const [products, categories, sales, expenses, treasury, workers, wholesalers, customers, purchases] = await Promise.all([
         fetchData('products'),
         fetchData('categories'),
@@ -61,7 +62,9 @@ export const SideMenu = ({ isOpen, onClose, onOpenRegistration, onNavigate, onOp
         fetchData('purchases')
       ]);
 
-      const filterByUser = (arr) => arr.filter(item => item.user_id == currentUser.id);
+      // 2. فلترة البيانات الخاصة بالمستخدم الحالي فقط
+      // Filter data to ensure only current user's data is backed up
+      const filterByUser = (arr) => arr ? arr.filter(item => item.user_id == currentUser.id) : [];
 
       const backupPayload = {
         products: filterByUser(products),
@@ -75,25 +78,28 @@ export const SideMenu = ({ isOpen, onClose, onOpenRegistration, onNavigate, onOp
         purchases: filterByUser(purchases),
         meta: {
           username: currentUser.username,
-          backup_date: new Date().toISOString()
+          backup_date: new Date().toISOString(),
+          app_version: '1.0.0'
         }
       };
 
+      // 3. إرسال البيانات إلى جدول النسخ الاحتياطي
+      // Insert into backups table
       const { error } = await supabase.from('backups').insert([{
         user_id: currentUser.id,
         backup_data: backupPayload
       }]);
 
       if (!error) {
-        await fetchLastBackup();
-        alert('تم إنشاء النسخة الاحتياطية وحفظها في السحابة بنجاح');
+        await fetchLastBackup(); // تحديث النص فوراً
+        alert('تم إنشاء النسخة الاحتياطية وحفظها في السحابة بنجاح ✅');
       } else {
-        console.error(error);
-        alert('حدث خطأ أثناء النسخ الاحتياطي');
+        console.error("Backup Error:", error);
+        alert('حدث خطأ أثناء حفظ النسخة الاحتياطية. يرجى المحاولة لاحقاً.');
       }
     } catch (e) {
-      console.error(e);
-      alert('فشلت العملية');
+      console.error("Backup Exception:", e);
+      alert('فشلت العملية. تأكد من اتصالك بالإنترنت.');
     } finally {
       setBackupLoading(false);
     }
@@ -130,7 +136,7 @@ export const SideMenu = ({ isOpen, onClose, onOpenRegistration, onNavigate, onOp
           label: backupLoading ? 'جاري النسخ...' : 'إنشاء نسخة احتياطية', 
           color: '#388e3c', 
           action: handleCreateBackup,
-          description: lastBackup ? `آخر نسخة كانت في ${lastBackup}` : null
+          description: lastBackup ? `آخر نسخة كانت في ${lastBackup}` : 'لم يتم إنشاء نسخة احتياطية بعد'
         },
         { icon: RotateCcw, label: 'استعادة نسخة احتياطية', color: '#f57c00', action: () => onClose() }, 
         { 
@@ -245,7 +251,7 @@ export const SideMenu = ({ isOpen, onClose, onOpenRegistration, onNavigate, onOp
                           </span>
                         </div>
                         {item.description && (
-                          <span className="text-[10px] text-gray-400 mr-12 mt-1 font-medium">
+                          <span className="text-[10px] text-gray-400 mr-12 mt-1 font-medium block">
                             {item.description}
                           </span>
                         )}
