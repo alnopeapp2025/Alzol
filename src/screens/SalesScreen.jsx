@@ -1,10 +1,9 @@
 import React, { useState, useEffect } from 'react';
 import { ArrowRight, Plus, Minus, ShoppingCart, X, Save, Printer, Share2, Trash2, ScanBarcode } from 'lucide-react';
-import { fetchData, insertData, updateData } from '../lib/dataService'; // Use Data Service for Offline
+import { fetchData, insertData, updateData } from '../lib/dataService'; 
 import { Toast } from '../components/Toast';
-import html2pdf from 'html2pdf.js'; // Import PDF Library
+import html2pdf from 'html2pdf.js'; 
 
-// Sound Utility
 const playBeep = () => {
   try {
     const audioCtx = new (window.AudioContext || window.webkitAudioContext)();
@@ -30,7 +29,6 @@ export const SalesScreen = ({ onBack }) => {
   const [loading, setLoading] = useState(false);
   const [toast, setToast] = useState({ show: false, message: '' });
 
-  // Cart State
   const [cart, setCart] = useState([]);
   const [selectedProductId, setSelectedProductId] = useState('');
   const [paymentMethod, setPaymentMethod] = useState('رصيد بنكك');
@@ -46,32 +44,24 @@ export const SalesScreen = ({ onBack }) => {
   };
 
   const fetchInvoices = async () => {
-    // Fetch raw sales data using dataService (supports offline)
     const data = await fetchData('sales');
-
     if (data) {
-      // Group by invoice_id locally
       const grouped = {};
       data.forEach(sale => {
-        // If legacy data has no invoice_id, group by ID or skip
         const invId = sale.invoice_id || `LEGACY-${sale.id}`;
-        
         if (!grouped[invId]) {
           grouped[invId] = {
             invoice_id: invId,
             total_amount: 0,
-            date: new Date(sale.created_at).toLocaleDateString('en-GB'), // DD/MM/YYYY
+            date: new Date(sale.created_at).toLocaleDateString('en-GB'),
             created_at: sale.created_at
           };
         }
         grouped[invId].total_amount += Number(sale.total_price);
       });
-
-      // Convert to array and sort
       const invoiceList = Object.values(grouped).sort((a, b) => 
         new Date(b.created_at) - new Date(a.created_at)
       );
-      
       setInvoices(invoiceList);
     }
   };
@@ -79,7 +69,6 @@ export const SalesScreen = ({ onBack }) => {
   const fetchProducts = async () => {
     const data = await fetchData('products');
     if (data) {
-      // Filter products with quantity > 0
       setProducts(data.filter(p => p.quantity > 0));
     }
   };
@@ -136,7 +125,6 @@ export const SalesScreen = ({ onBack }) => {
     const saleDate = new Date().toLocaleString('ar-EG');
     let isOfflineTransaction = false;
 
-    // 1. Process each item (Insert Sale + Update Product)
     for (const item of cart) {
       const { isOffline: saleOffline } = await insertData('sales', {
         product_name: item.name,
@@ -153,7 +141,6 @@ export const SalesScreen = ({ onBack }) => {
       if (saleOffline || prodOffline) isOfflineTransaction = true;
     }
 
-    // 2. Update Treasury
     const treasuryData = await fetchData('treasury_balances');
     const balanceItem = treasuryData.find(d => d.name === paymentMethod);
 
@@ -176,8 +163,6 @@ export const SalesScreen = ({ onBack }) => {
     setShowModal(false);
     setShowInvoice(true);
     setCart([]);
-    
-    // Refresh data
     loadData();
     
     if (isOfflineTransaction) {
@@ -185,25 +170,24 @@ export const SalesScreen = ({ onBack }) => {
     }
   };
 
-  // --- Print Logic (PDF Fallback for APK) ---
+  // FIX: Robust Print for APK (PDF Save)
   const handlePrint = () => {
     playBeep();
     
-    // Try to generate PDF and save it (Works in APK/Mobile)
     const element = document.getElementById('invoice-content');
     if (element) {
       const opt = {
-        margin: 0.5,
+        margin: 0.2,
         filename: `invoice-${lastInvoice.id}.pdf`,
         image: { type: 'jpeg', quality: 0.98 },
         html2canvas: { scale: 2, useCORS: true },
         jsPDF: { unit: 'in', format: 'a4', orientation: 'portrait' }
       };
       
-      // Generate and save
+      // Force save which works in Android WebViews
       html2pdf().set(opt).from(element).save().catch(err => {
         console.error("PDF generation failed", err);
-        // Fallback to standard print if PDF fails
+        // Last resort
         window.print();
       });
     } else {
@@ -211,11 +195,10 @@ export const SalesScreen = ({ onBack }) => {
     }
   };
 
-  // --- Share Logic (WhatsApp Fallback) ---
-  const handleShare = () => {
+  // FIX: Robust Share with WhatsApp Fallback for APK
+  const handleShare = async () => {
     playBeep();
     
-    // Construct Invoice Text
     let text = `*فاتورة مبيعات*\n`;
     text += `رقم الفاتورة: #${lastInvoice.id}\n`;
     text += `التاريخ: ${lastInvoice.date}\n`;
@@ -227,19 +210,21 @@ export const SalesScreen = ({ onBack }) => {
     text += `----------------\n`;
     text += `*المجموع الكلي: ${lastInvoice.total.toLocaleString()} ج.س*\n`;
 
-    // Try Web Share API first
+    // Try Native Share first
     if (navigator.share) {
-      navigator.share({
-        title: 'فاتورة مبيعات',
-        text: text,
-      }).catch((error) => {
-        // If user cancels or share fails, fallback to WhatsApp
-        console.log('Share failed or cancelled, trying WhatsApp fallback...');
+      try {
+        await navigator.share({
+          title: 'فاتورة مبيعات',
+          text: text,
+        });
+      } catch (error) {
+        // Fallback if share is cancelled or fails
+        console.log('Share failed, falling back to WhatsApp');
         const whatsappUrl = `https://wa.me/?text=${encodeURIComponent(text)}`;
         window.open(whatsappUrl, '_blank');
-      });
+      }
     } else {
-      // Fallback for APK/Desktop where navigator.share might be missing
+      // Direct Fallback for APK/WebView
       const whatsappUrl = `https://wa.me/?text=${encodeURIComponent(text)}`;
       window.open(whatsappUrl, '_blank');
     }
@@ -253,7 +238,7 @@ export const SalesScreen = ({ onBack }) => {
         onClose={() => setToast({ ...toast, show: false })} 
       />
 
-      {/* Header - Aligned Parallel */}
+      {/* Header */}
       <div className="bg-[#00695c] text-white h-16 flex items-center justify-between px-4 shadow-lg shrink-0 rounded-b-2xl z-10">
         <button 
           onClick={onBack}
@@ -262,7 +247,6 @@ export const SalesScreen = ({ onBack }) => {
           <ArrowRight size={24} strokeWidth={2.5} />
         </button>
         
-        {/* Title */}
         <h1 className="text-xl font-bold flex-1 text-center mx-2 pt-1">المبيعات</h1>
         
         <div className="flex items-center gap-3">
@@ -270,7 +254,6 @@ export const SalesScreen = ({ onBack }) => {
             <ScanBarcode size={24} strokeWidth={2} />
           </div>
           
-          {/* 3D Plus Button - Aligned with Title */}
           <button 
             onClick={() => setShowModal(true)}
             className="relative group w-10 h-10"
@@ -283,7 +266,6 @@ export const SalesScreen = ({ onBack }) => {
         </div>
       </div>
 
-      {/* Sales List Headers */}
       <div className="px-4 py-3 flex items-center gap-2 text-[#00695c] font-bold text-xs border-b border-[#00695c]/10 shrink-0 bg-[#FFF9C4]">
         <div className="w-8 text-center">ت</div>
         <div className="flex-1 text-center">رقم الفاتورة</div>
@@ -291,7 +273,6 @@ export const SalesScreen = ({ onBack }) => {
         <div className="w-20 text-center">التاريخ</div>
       </div>
 
-      {/* Sales History List (Rows) */}
       <div className="flex-1 overflow-y-auto px-4 pb-20 pt-2 custom-scrollbar">
         {invoices.length === 0 ? (
           <div className="text-center text-gray-400 mt-20 font-medium">
@@ -301,22 +282,15 @@ export const SalesScreen = ({ onBack }) => {
           <div className="flex flex-col gap-2">
             {invoices.map((inv, index) => (
               <div key={inv.invoice_id} className="bg-white rounded-lg p-3 shadow-sm border border-gray-100 flex items-center gap-2 h-12">
-                {/* Sequence */}
                 <div className="w-8 text-center font-bold text-gray-400 text-sm">
                   {index + 1}
                 </div>
-                
-                {/* Invoice ID */}
                 <div className="flex-1 text-center font-bold text-gray-800 text-sm truncate">
                   #{inv.invoice_id.replace('LEGACY-', '')}
                 </div>
-
-                {/* Amount */}
                 <div className="w-24 text-center font-black text-[#00695c] text-sm dir-ltr">
                   {inv.total_amount.toLocaleString()}
                 </div>
-
-                {/* Date */}
                 <div className="w-20 text-center font-medium text-gray-500 text-xs dir-ltr">
                   {inv.date}
                 </div>
@@ -326,7 +300,6 @@ export const SalesScreen = ({ onBack }) => {
         )}
       </div>
 
-      {/* Sales Cart Modal */}
       {showModal && (
         <div className="fixed inset-0 z-50 flex items-start justify-center p-4 pt-20">
           <div className="absolute inset-0 bg-black/50 backdrop-blur-sm" onClick={() => setShowModal(false)} />
@@ -393,12 +366,10 @@ export const SalesScreen = ({ onBack }) => {
         </div>
       )}
 
-      {/* Invoice Modal */}
       {showInvoice && lastInvoice && (
         <div className="fixed inset-0 z-[60] flex items-center justify-center p-4">
           <div className="absolute inset-0 bg-black/60 backdrop-blur-sm" onClick={() => setShowInvoice(false)} />
           <div className="bg-white w-full max-w-sm rounded-none sm:rounded-lg shadow-2xl overflow-hidden relative z-10 animate-in zoom-in duration-200 print:w-full print:h-full print:fixed print:inset-0">
-            {/* ID added for PDF generation */}
             <div id="invoice-content" className="p-8 text-center bg-white">
               <div className="w-16 h-16 bg-[#00695c] rounded-full flex items-center justify-center mx-auto mb-4 text-white"><ShoppingCart size={32} /></div>
               <h2 className="text-2xl font-bold text-gray-800 mb-1">فاتورة مبيعات</h2>
@@ -420,7 +391,6 @@ export const SalesScreen = ({ onBack }) => {
               </div>
             </div>
             
-            {/* Buttons Area (Excluded from PDF by being outside the ID div, or handled by PDF logic) */}
             <div className="p-4 bg-gray-50 border-t border-gray-100">
                <div className="flex gap-3 print:hidden">
                 <button onClick={handlePrint} className="flex-1 bg-gray-800 text-white h-12 rounded-xl font-bold flex items-center justify-center gap-2 hover:bg-gray-900"><Printer size={20} /> طباعة</button>

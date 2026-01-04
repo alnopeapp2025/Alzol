@@ -1,6 +1,6 @@
-import React, { useState, useEffect, useCallback } from 'react';
+import React, { useState, useEffect, useCallback, useRef } from 'react';
 import { ArrowRight, Search, Plus, Save, ScanBarcode, X, ArrowDown, Trash2, Settings, UserPlus } from 'lucide-react';
-import { fetchData, insertData, updateData, deleteData } from '../lib/dataService'; // Use Data Service
+import { fetchData, insertData, updateData, deleteData } from '../lib/dataService';
 import { Html5Qrcode } from 'html5-qrcode'; 
 import { Toast } from '../components/Toast';
 import { ConfirmDialog } from '../components/ConfirmDialog';
@@ -38,10 +38,6 @@ export const AddProductScreen = ({ onBack, currentUser, onOpenRegistration }) =>
 
   const loadProducts = async () => {
     const data = await fetchData('products');
-    
-    // Filter by user if logged in (Offline logic handles this simply by returning all local data for now, 
-    // but in a real multi-user offline app we'd filter local data too. 
-    // For this MVP, we assume local data belongs to the current user context)
     let filtered = data;
     if (currentUser) {
       filtered = data.filter(p => p.user_id === currentUser.id);
@@ -297,6 +293,12 @@ const ProductModal = ({ product, currentUser, onClose, onSuccess }) => {
     setPermissionDenied(true);
   }, []);
 
+  // FIX: Safe Scanner Close to prevent White Screen
+  const handleCloseScanner = () => {
+    setShowScanner(false);
+    setPermissionDenied(false);
+  };
+
   const inputStyles = "w-full h-12 px-4 rounded-xl border-2 border-[#00695c] focus:outline-none focus:ring-2 focus:ring-[#00695c]/50 text-right text-base font-medium shadow-sm caret-[#00695c] placeholder-gray-400 bg-white";
   const labelStyles = "block text-[#00695c] text-xs font-bold mb-1 text-right px-1";
 
@@ -321,7 +323,7 @@ const ProductModal = ({ product, currentUser, onClose, onSuccess }) => {
         <div className="absolute inset-0 z-[60] bg-black flex flex-col items-center justify-center p-4">
            <div className="w-full max-w-sm relative">
              <button 
-               onClick={() => { setShowScanner(false); setPermissionDenied(false); }}
+               onClick={handleCloseScanner}
                className="absolute -top-12 right-0 z-20 bg-white/20 p-2 rounded-full text-white hover:bg-white/40"
              >
                <X size={24} />
@@ -436,16 +438,27 @@ const ProductModal = ({ product, currentUser, onClose, onSuccess }) => {
 };
 
 const ScannerComponent = ({ onScanSuccess, onPermissionError }) => {
+  const scannerRef = useRef(null);
+
   useEffect(() => {
+    // FIX: Optimized Scanner Initialization
     const html5QrCode = new Html5Qrcode("reader");
-    const config = { fps: 10, qrbox: { width: 250, height: 250 } };
+    scannerRef.current = html5QrCode;
+
+    const config = { 
+      fps: 15, // Increased FPS for faster reading
+      qrbox: { width: 250, height: 250 },
+      aspectRatio: 1.0
+    };
     
     html5QrCode.start(
       { facingMode: "environment" }, 
       config,
       (decodedText) => {
-        onScanSuccess(decodedText);
-        html5QrCode.stop().catch(err => console.error("Stop failed", err));
+        // Stop scanning immediately on success
+        html5QrCode.stop().then(() => {
+           onScanSuccess(decodedText);
+        }).catch(err => console.error("Stop failed", err));
       },
       (errorMessage) => {
         // ignore frame errors
@@ -459,11 +472,15 @@ const ScannerComponent = ({ onScanSuccess, onPermissionError }) => {
       }
     });
 
+    // FIX: Robust Cleanup to prevent White Screen on Unmount
     return () => {
-      if (html5QrCode.isScanning) {
-        html5QrCode.stop().catch(err => console.error("Cleanup stop failed", err));
+      if (scannerRef.current && scannerRef.current.isScanning) {
+        scannerRef.current.stop().catch(err => console.warn("Cleanup stop failed", err));
       }
-      html5QrCode.clear();
+      // Clear is important but must be safe
+      try {
+         scannerRef.current.clear();
+      } catch(e) { /* ignore */ }
     };
   }, [onScanSuccess, onPermissionError]);
 
