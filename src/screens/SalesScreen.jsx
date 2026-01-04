@@ -31,7 +31,7 @@ export const SalesScreen = ({ onBack }) => {
 
   const [cart, setCart] = useState([]);
   const [selectedProductId, setSelectedProductId] = useState('');
-  const [paymentMethod, setPaymentMethod] = useState('رصيد بنكك');
+  const [paymentMethod, setPaymentMethod] = useState('بنكك - بنك الخرطوم');
   const [selectedInvoice, setSelectedInvoice] = useState(null); 
   const [currentUser, setCurrentUser] = useState(null);
   
@@ -48,7 +48,7 @@ export const SalesScreen = ({ onBack }) => {
 
   useEffect(() => {
     loadData();
-  }, [currentUser]); // Reload when user changes
+  }, [currentUser]); 
 
   const loadData = async () => {
     await fetchInvoices();
@@ -58,7 +58,7 @@ export const SalesScreen = ({ onBack }) => {
   const fetchInvoices = async () => {
     const data = await fetchData('sales');
     if (data) {
-      // PRIVACY FILTER: Only show sales for this user
+      // PRIVACY FILTER
       const userSales = currentUser 
         ? data.filter(s => s.user_id == currentUser.id)
         : data.filter(s => !s.user_id);
@@ -94,7 +94,6 @@ export const SalesScreen = ({ onBack }) => {
   const fetchProducts = async () => {
     const data = await fetchData('products');
     if (data) {
-      // PRIVACY FILTER: Only show products for this user
       const userProducts = currentUser 
         ? data.filter(p => p.user_id == currentUser.id)
         : data.filter(p => !p.user_id);
@@ -155,14 +154,14 @@ export const SalesScreen = ({ onBack }) => {
     let isOfflineTransaction = false;
     const userId = currentUser ? currentUser.id : null;
 
-    // 1. Save Sales Records (Linked to User)
+    // 1. Save Sales Records
     for (const item of cart) {
       const { isOffline: saleOffline } = await insertData('sales', {
         product_name: item.name,
         quantity: item.quantity,
         total_price: item.selling_price * item.quantity,
         invoice_id: invoiceId,
-        user_id: userId // Link to User
+        user_id: userId
       });
 
       // 2. Update Product Quantity
@@ -177,24 +176,20 @@ export const SalesScreen = ({ onBack }) => {
     // 3. Update Treasury (PRIVATE & REAL-TIME)
     const treasuryData = await fetchData('treasury_balances');
     
-    // Find bank by name AND user_id
     const balanceItem = treasuryData.find(d => 
       d.name === paymentMethod && (userId ? d.user_id == userId : !d.user_id)
     );
 
     if (balanceItem) {
-      // Update existing bank balance
       const { isOffline: treasuryOffline } = await updateData('treasury_balances', balanceItem.id, { 
         amount: Number(balanceItem.amount) + totalAmount 
       });
       if (treasuryOffline) isOfflineTransaction = true;
     } else {
-      // Create new private bank entry for this user
-      console.warn("Bank not found for user, creating new entry:", paymentMethod);
       const { isOffline: createOffline } = await insertData('treasury_balances', {
         name: paymentMethod,
         amount: totalAmount,
-        user_id: userId // Link to User
+        user_id: userId
       });
       if (createOffline) isOfflineTransaction = true;
     }
@@ -213,15 +208,12 @@ export const SalesScreen = ({ onBack }) => {
     setShowModal(false);
     setShowInvoice(true);
     setCart([]);
-    loadData(); // Refresh list
+    loadData(); 
     
     if (isOfflineTransaction) {
       setToast({ show: true, message: 'تم حفظ العملية (وضع عدم الاتصال)' });
     }
   };
-
-  // ... (Rest of the component: handleInvoiceClick, generatePDF, handlePrint, handleShare, Scanner Logic, Render) ...
-  // Keeping the rest of the UI exactly as is, just ensuring the logic above is integrated.
 
   const handleInvoiceClick = (inv) => {
     const total = inv.total_amount || inv.items.reduce((s, i) => s + (i.selling_price * i.quantity), 0);
@@ -479,11 +471,10 @@ export const SalesScreen = ({ onBack }) => {
               <div className="mb-4">
                 <label className="block text-gray-600 text-xs font-bold mb-1 text-right">طريقة الدفع (البنك)</label>
                 <select value={paymentMethod} onChange={(e) => setPaymentMethod(e.target.value)} className="w-full h-10 px-3 rounded-lg border border-gray-300 text-right bg-white">
-                  <option value="رصيد بنكك">رصيد بنكك</option>
+                  <option value="بنكك - بنك الخرطوم">بنكك - بنك الخرطوم</option>
                   <option value="رصيد بنك فيصل">رصيد بنك فيصل</option>
                   <option value="بنك أم درمان">بنك أم درمان</option>
-                  <option value="بنك آخر">بنك آخر</option>
-                  <option value="كاش نقدا">كاش نقدا</option>
+                  <option value="نقداً كاش">نقداً كاش</option>
                 </select>
               </div>
               <button onClick={handleCheckout} disabled={loading || cart.length === 0} className="w-full bg-[#00695c] text-white h-12 rounded-xl font-bold text-lg shadow-md hover:bg-[#005c4b] flex items-center justify-center gap-2 disabled:opacity-50"><Save size={20} /><span>{loading ? 'جاري المعالجة...' : 'إتمام البيع'}</span></button>

@@ -1,5 +1,5 @@
 import React, { useState } from 'react';
-import { ArrowRight, User, Lock, CreditCard, ChevronDown, ShieldCheck } from 'lucide-react';
+import { ArrowRight, User, Lock, CreditCard, ChevronDown, ShieldCheck, AlertTriangle } from 'lucide-react';
 import { supabase } from '../lib/supabaseClient';
 import { Toast } from '../components/Toast';
 
@@ -33,11 +33,6 @@ export const EditProfileScreen = ({ onBack, currentUser, onUpdateUser }) => {
     e.preventDefault();
     setLoading(true);
 
-    // Verify against current user data
-    // In a real scenario, we check DB, but since we have currentUser, we can check basic fields
-    // However, security answer might not be in currentUser object depending on select.
-    // Let's check DB to be sure.
-    
     if (phone !== currentUser.username) {
         showToast('رقم الهاتف غير مطابق للحساب الحالي', 'error');
         setLoading(false);
@@ -160,8 +155,14 @@ export const EditProfileScreen = ({ onBack, currentUser, onUpdateUser }) => {
 
         {view === 'verify-security' && (
             <form onSubmit={handleVerifySecurity} className="flex flex-col gap-4 w-full">
-                <div className="bg-blue-50 text-blue-800 p-3 rounded-xl text-sm font-bold text-center mb-2">
-                    للأمان، يرجى تأكيد هويتك أولاً
+                {/* Red Warning Text */}
+                <div className="bg-red-50 border-2 border-red-100 rounded-xl p-4 flex items-center gap-3 animate-in slide-in-from-top duration-200 mb-2">
+                  <div className="bg-red-100 p-2 rounded-full text-red-600 shrink-0">
+                    <AlertTriangle size={20} strokeWidth={2.5} />
+                  </div>
+                  <p className="text-red-600 font-bold text-base leading-tight text-right flex-1">
+                    للأمان يرجى تأكيد هويتك أولاً
+                  </p>
                 </div>
 
                 <div>

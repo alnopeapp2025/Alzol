@@ -22,7 +22,7 @@ export const ExpensesScreen = ({ onBack }) => {
   const [formData, setFormData] = useState({
     name: '',
     amount: '',
-    payment_method: 'رصيد بنكك'
+    payment_method: 'بنكك - بنك الخرطوم'
   });
 
   useEffect(() => {
@@ -162,7 +162,7 @@ export const ExpensesScreen = ({ onBack }) => {
     setShowModal(false);
     setIsEditing(false);
     setSelectedExpense(null);
-    setFormData({ name: '', amount: '', payment_method: 'رصيد بنكك' });
+    setFormData({ name: '', amount: '', payment_method: 'بنكك - بنك الخرطوم' });
     
     // Refresh Data
     loadData();
@@ -289,7 +289,7 @@ export const ExpensesScreen = ({ onBack }) => {
       <button 
         onClick={() => {
           setIsEditing(false);
-          setFormData({ name: '', amount: '', payment_method: 'رصيد بنكك' });
+          setFormData({ name: '', amount: '', payment_method: 'بنكك - بنك الخرطوم' });
           setShowModal(true);
         }}
         className="absolute bottom-6 left-6 w-14 h-14 bg-[#00695c] text-white rounded-2xl shadow-xl flex items-center justify-center hover:bg-[#005c4b] active:scale-90 transition-all z-20"
@@ -367,10 +367,10 @@ export const ExpensesScreen = ({ onBack }) => {
                     disabled={isEditing}
                     className={`w-full h-12 px-4 rounded-xl border-2 border-[#00695c] focus:outline-none focus:ring-2 focus:ring-[#00695c]/50 text-right font-medium appearance-none ${isEditing ? 'bg-gray-100 text-gray-500' : 'bg-white'}`}
                   >
-                    <option value="رصيد بنكك">رصيد بنكك</option>
+                    <option value="بنكك - بنك الخرطوم">بنكك - بنك الخرطوم</option>
                     <option value="رصيد بنك فيصل">رصيد بنك فيصل</option>
                     <option value="بنك أم درمان">بنك أم درمان</option>
-                    <option value="بنك آخر">بنك آخر</option>
+                    <option value="نقداً كاش">نقداً كاش</option>
                   </select>
                   {!isEditing && (
                     <div className="absolute left-4 top-1/2 -translate-y-1/2 pointer-events-none text-[#00695c]">

@@ -6,11 +6,12 @@ import {
 } from 'lucide-react';
 import { playSound } from '../utils/soundManager';
 import { supabase } from '../lib/supabaseClient';
-import { fetchData } from '../lib/dataService';
+import { fetchData, insertData, deleteData } from '../lib/dataService';
 
 export const SideMenu = ({ isOpen, onClose, onOpenRegistration, onNavigate, onOpenPro, currentUser, onLogout }) => {
   const [lastBackup, setLastBackup] = useState(null);
   const [backupLoading, setBackupLoading] = useState(false);
+  const [restoreLoading, setRestoreLoading] = useState(false);
   const [showDeleteModal, setShowDeleteModal] = useState(false);
 
   useEffect(() => {
@@ -31,7 +32,6 @@ export const SideMenu = ({ isOpen, onClose, onOpenRegistration, onNavigate, onOp
 
       if (data && data.length > 0) {
         const date = new Date(data[0].created_at);
-        // تنسيق التاريخ والوقت كما هو مطلوب
         const day = date.toLocaleDateString('ar-EG', { year: 'numeric', month: 'numeric', day: 'numeric' });
         const time = date.toLocaleTimeString('ar-EG', { hour: '2-digit', minute: '2-digit' });
         setLastBackup(`${day} ${time}`);
@@ -49,17 +49,14 @@ export const SideMenu = ({ isOpen, onClose, onOpenRegistration, onNavigate, onOp
     setBackupLoading(true);
     
     try {
-      // 1. جلب كافة البيانات الخاصة بالمستخدم
-      const tables = ['products', 'categories', 'sales', 'expenses', 'treasury_balances', 'workers', 'wholesalers', 'customers', 'purchases'];
+      const tables = ['products', 'categories', 'sales', 'expenses', 'treasury_balances', 'workers', 'wholesalers', 'customers', 'purchases', 'debts'];
       const backupPayload = { meta: { username: currentUser.username, date: new Date().toISOString() } };
 
       for (const table of tables) {
         const data = await fetchData(table);
-        // فلترة البيانات الخاصة بالمستخدم فقط
         backupPayload[table] = data ? data.filter(item => item.user_id == currentUser.id) : [];
       }
 
-      // 2. إرسال للجدول
       const { error } = await supabase.from('backups').insert([{
         user_id: currentUser.id,
         backup_data: backupPayload
@@ -77,6 +74,66 @@ export const SideMenu = ({ isOpen, onClose, onOpenRegistration, onNavigate, onOp
       alert('فشلت العملية. يرجى المحاولة لاحقاً.');
     } finally {
       setBackupLoading(false);
+    }
+  };
+
+  const handleRestoreBackup = async () => {
+    if (!currentUser) {
+      alert('يرجى تسجيل الدخول أولاً');
+      return;
+    }
+    setRestoreLoading(true);
+
+    try {
+      // 1. Fetch latest backup
+      const { data, error } = await supabase
+        .from('backups')
+        .select('backup_data')
+        .eq('user_id', currentUser.id)
+        .order('created_at', { ascending: false })
+        .limit(1)
+        .single();
+
+      if (!data || error) {
+        alert('لا توجد نسخة متوفرة');
+        setRestoreLoading(false);
+        return;
+      }
+
+      const backup = data.backup_data;
+      const tables = ['products', 'categories', 'sales', 'expenses', 'treasury_balances', 'workers', 'wholesalers', 'customers', 'purchases', 'debts'];
+
+      // 2. Restore Data (Delete current -> Insert backup)
+      // Note: This is a destructive operation for current data, usually we warn user.
+      // Assuming user knows what they are doing based on button click.
+      
+      for (const table of tables) {
+        if (backup[table] && Array.isArray(backup[table])) {
+          // Delete existing
+          await supabase.from(table).delete().eq('user_id', currentUser.id);
+          
+          // Insert backup data (if any)
+          if (backup[table].length > 0) {
+             // Remove IDs to let DB generate new ones or keep them?
+             // Keeping IDs might cause conflicts if sequence isn't updated.
+             // Safer to remove ID and let DB handle it, OR use upsert.
+             // For simplicity and exact restore, we try to insert.
+             const records = backup[table].map(({ id, ...rest }) => ({ ...rest, user_id: currentUser.id }));
+             if (records.length > 0) {
+                await supabase.from(table).insert(records);
+             }
+          }
+        }
+      }
+
+      alert('✅ تم استعادة النسخة الاحتياطية بنجاح');
+      window.location.reload(); // Reload to reflect changes
+
+    } catch (e) {
+      console.error("Restore Exception:", e);
+      alert('فشلت عملية الاستعادة.');
+    } finally {
+      setRestoreLoading(false);
     }
   };
 
@@ -115,7 +172,12 @@ export const SideMenu = ({ isOpen, onClose, onOpenRegistration, onNavigate, onOp
           action: handleCreateBackup,
           description: lastBackup ? `آخر نسخة كانت في ${lastBackup}` : 'لم يتم إنشاء نسخة احتياطية بعد'
         },
-        { icon: RotateCcw, label: 'استعادة نسخة احتياطية', color: '#f57c00', action: () => { onClose(); alert('سيتم تفعيل الاستعادة قريباً'); } }, 
+        { 
+          icon: RotateCcw, 
+          label: restoreLoading ? 'جاري الاستعادة...' : 'استعادة نسخة احتياطية', 
+          color: '#f57c00', 
+          action: handleRestoreBackup 
+        }, 
         { 
           icon: Trash2, 
           label: 'حذف البيانات', 

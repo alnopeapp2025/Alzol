@@ -1,6 +1,6 @@
 import React, { useState, useEffect } from 'react';
 import { ArrowRight, TrendingUp, RefreshCw, Trash2, ArrowLeftRight, X, Save, AlertCircle } from 'lucide-react';
-import { fetchData, updateData } from '../lib/dataService'; 
+import { fetchData, updateData, insertData } from '../lib/dataService'; 
 import { Toast } from '../components/Toast';
 import { ConfirmDialog } from '../components/ConfirmDialog';
 
@@ -16,17 +16,17 @@ export const TreasuryScreen = ({ onBack }) => {
   
   // Transfer Form State
   const [transferData, setTransferData] = useState({
-    fromBank: 'رصيد بنكك',
+    fromBank: 'بنكك - بنك الخرطوم',
     toBank: 'رصيد بنك فيصل',
     amount: ''
   });
 
-  // Initial Buttons
+  // Initial Buttons - Updated Names
   const [treasuryData, setTreasuryData] = useState([
-    { id: 'bok', name: 'رصيد بنكك', amount: 0, color: '#d32f2f', textColor: 'text-white', dbId: null }, 
+    { id: 'bok', name: 'بنكك - بنك الخرطوم', amount: 0, color: '#d32f2f', textColor: 'text-white', dbId: null }, 
     { id: 'fib', name: 'رصيد بنك فيصل', amount: 0, color: '#fbc02d', textColor: 'text-gray-900', dbId: null }, 
     { id: 'omd', name: 'بنك أم درمان', amount: 0, color: '#2e7d32', textColor: 'text-white', dbId: null }, 
-    { id: 'other', name: 'بنك آخر', amount: 0, color: '#7b1fa2', textColor: 'text-white', dbId: null }
+    { id: 'cash', name: 'نقداً كاش', amount: 0, color: '#7b1fa2', textColor: 'text-white', dbId: null }
   ]);
 
   useEffect(() => {
@@ -50,6 +50,8 @@ export const TreasuryScreen = ({ onBack }) => {
 
       setTreasuryData(prevData => {
         return prevData.map(uiBank => {
+          // Match by name or map old names to new names if necessary for backward compatibility
+          // For now, we assume names in DB match or we rely on UI names for display
           const dbBank = userBalances.find(d => d.name === uiBank.name);
           return dbBank 
             ? { ...uiBank, amount: dbBank.amount, dbId: dbBank.id } 
@@ -58,7 +60,6 @@ export const TreasuryScreen = ({ onBack }) => {
       });
 
       const total = userBalances
-        .filter(d => d.name !== 'كاش نقدا') 
         .reduce((sum, item) => sum + Number(item.amount), 0);
       
       setTotalTreasury(total);
@@ -107,13 +108,8 @@ export const TreasuryScreen = ({ onBack }) => {
     const sourceBank = treasuryData.find(b => b.name === transferData.fromBank);
     const destBank = treasuryData.find(b => b.name === transferData.toBank);
 
-    if (!sourceBank || !sourceBank.dbId) {
-      alert('حساب المصدر غير موجود أو رصيده صفر');
-      return;
-    }
-
-    if (Number(sourceBank.amount) < amount) {
-      alert('الرصيد غير كافٍ في البنك المحول منه');
+    if (!sourceBank || !sourceBank.dbId || Number(sourceBank.amount) < amount) {
+      alert('الرصيد غير كافٍ أو الحساب غير موجود');
       return;
     }
 
@@ -124,22 +120,20 @@ export const TreasuryScreen = ({ onBack }) => {
       amount: Number(sourceBank.amount) - amount
     });
 
-    // 2. Add to Destination
-    // If dest bank exists in DB update it, otherwise we might need insert logic (handled generally by loadData structure, assuming rows exist)
-    // For safety, we check dbId. If null, it means row doesn't exist yet for this user.
-    // However, in this UI flow, we usually assume rows exist or are created on first sale/expense.
-    // If destBank.dbId is null, we can't update. In a real app we'd insert. 
-    // For now, we'll alert if dest doesn't exist (it should if initialized properly or used).
-    
     if (!err1) {
+        // 2. Add to Destination
         if (destBank.dbId) {
+            // If destination exists, update it
             await updateData('treasury_balances', destBank.dbId, {
                 amount: Number(destBank.amount) + amount
             });
         } else {
-            // Handle case where dest bank row doesn't exist yet
-            // This requires insertData which we need to import or assume exists
-            // For simplicity in this update, we assume banks are initialized.
+            // If destination does NOT exist in DB for this user, INSERT it
+            await insertData('treasury_balances', {
+                name: destBank.name,
+                amount: amount,
+                user_id: currentUser ? currentUser.id : null
+            });
         }
         
         setToast({ show: true, message: (off1) ? 'تم التحويل (وضع عدم الاتصال)' : 'تم التحويل بنجاح' });
@@ -214,7 +208,7 @@ export const TreasuryScreen = ({ onBack }) => {
           ))}
         </div>
 
-        {/* Action Buttons (New) */}
+        {/* Action Buttons */}
         <div className="flex flex-col gap-3 mt-4">
             <button 
                 onClick={() => setShowTransferModal(true)}

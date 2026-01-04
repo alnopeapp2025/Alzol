@@ -10,7 +10,9 @@ import {
   ClipboardList, 
   FileText, 
   Settings, 
-  Calculator
+  Calculator,
+  Briefcase,
+  CreditCard
 } from 'lucide-react';
 
 // Screen 1 Data
@@ -30,5 +32,7 @@ export const screen2Data = [
   { id: 9, title: 'التقارير النهائية', icon: FileText, color: '#616161' }, // Grey
   { id: 10, title: 'تقارير المخزن', icon: ClipboardList, color: '#7b1fa2' }, // Purple
   { id: 11, title: 'الآلة الحاسبة', icon: Calculator, color: '#0277bd' }, // Blue
-  { id: 12, title: 'عمال ورواتب', icon: Settings, color: '#455a64' }, // Icon handled in App.jsx
+  { id: 12, title: 'عمال ورواتب', icon: Briefcase, color: '#455a64' }, // Briefcase Icon
+  { id: 13, title: 'الديون', icon: CreditCard, color: '#c62828' }, // Red for Debts
+  { id: 14, title: 'الإعدادات', icon: Settings, color: '#607d8b' }, // Grey for Settings
 ];

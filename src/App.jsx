@@ -20,6 +20,7 @@ import { WholesalersScreen } from './screens/WholesalersScreen';
 import { CustomersScreen } from './screens/CustomersScreen';
 import { PurchasesScreen } from './screens/PurchasesScreen';
 import { FinalReportsScreen } from './screens/FinalReportsScreen';
+import { DebtsScreen } from './screens/DebtsScreen';
 import { ProModal } from './components/ProModal';
 import { playSound } from './utils/soundManager';
 import { syncData } from './lib/dataService'; 
@@ -100,6 +101,10 @@ function App() {
       setCurrentScreen('wholesalers');
     } else if (title === 'العملاء') {
       setCurrentScreen('customers');
+    } else if (title === 'الديون') {
+      setCurrentScreen('debts');
+    } else if (title === 'الإعدادات') {
+      setCurrentScreen('settings');
     } else {
       console.log(`Clicked ${title}`);
     }
@@ -124,6 +129,7 @@ function App() {
   if (currentScreen === 'workers') return <WorkersScreen onBack={() => setCurrentScreen('dashboard')} />;
   if (currentScreen === 'wholesalers') return <WholesalersScreen onBack={() => setCurrentScreen('dashboard')} currentUser={currentUser} />;
   if (currentScreen === 'customers') return <CustomersScreen onBack={() => setCurrentScreen('dashboard')} currentUser={currentUser} />;
+  if (currentScreen === 'debts') return <DebtsScreen onBack={() => setCurrentScreen('dashboard')} currentUser={currentUser} />;
 
   return (
     <div className="min-h-screen bg-[#FFF9C4] flex flex-col font-sans">

@@ -14,7 +14,7 @@ export const PurchasesScreen = ({ onBack, currentUser }) => {
     product_id: '',
     quantity: '',
     cost_price: '',
-    payment_method: 'كاش نقدا'
+    payment_method: 'نقداً كاش'
   });
 
   useEffect(() => {
@@ -86,7 +86,7 @@ export const PurchasesScreen = ({ onBack, currentUser }) => {
 
     setLoading(false);
     setShowModal(false);
-    setFormData({ product_id: '', quantity: '', cost_price: '', payment_method: 'كاش نقدا' });
+    setFormData({ product_id: '', quantity: '', cost_price: '', payment_method: 'نقداً كاش' });
     setToast({ show: true, message: isOffline ? 'تم الحفظ (وضع عدم الاتصال)' : 'تم تسجيل المشتريات بنجاح' });
     loadData();
   };
@@ -167,8 +167,8 @@ export const PurchasesScreen = ({ onBack, currentUser }) => {
               <div>
                 <label className="block text-[#00695c] text-xs font-bold mb-1 text-right px-1">طريقة الدفع (الخصم من)</label>
                 <select value={formData.payment_method} onChange={(e) => setFormData({ ...formData, payment_method: e.target.value })} className="w-full h-12 px-4 rounded-xl border-2 border-[#00695c] text-right bg-white">
-                  <option value="كاش نقدا">كاش نقدا</option>
-                  <option value="رصيد بنكك">رصيد بنكك</option>
+                  <option value="نقداً كاش">نقداً كاش</option>
+                  <option value="بنكك - بنك الخرطوم">بنكك - بنك الخرطوم</option>
                   <option value="رصيد بنك فيصل">رصيد بنك فيصل</option>
                   <option value="بنك أم درمان">بنك أم درمان</option>
                 </select>
