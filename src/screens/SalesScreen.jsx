@@ -1,8 +1,9 @@
-import React, { useState, useEffect } from 'react';
-import { ArrowRight, Plus, Minus, ShoppingCart, X, Save, Printer, Share2, Trash2, ScanBarcode } from 'lucide-react';
+import React, { useState, useEffect, useCallback, useRef } from 'react';
+import { ArrowRight, Plus, Minus, ShoppingCart, X, Save, Printer, Share2, Trash2, ScanBarcode, Settings } from 'lucide-react';
 import { fetchData, insertData, updateData } from '../lib/dataService'; 
 import { Toast } from '../components/Toast';
 import html2pdf from 'html2pdf.js'; 
+import { Html5Qrcode } from 'html5-qrcode';
 
 const playBeep = () => {
   try {
@@ -32,7 +33,11 @@ export const SalesScreen = ({ onBack }) => {
   const [cart, setCart] = useState([]);
   const [selectedProductId, setSelectedProductId] = useState('');
   const [paymentMethod, setPaymentMethod] = useState('رصيد بنكك');
-  const [lastInvoice, setLastInvoice] = useState(null);
+  const [selectedInvoice, setSelectedInvoice] = useState(null); // For viewing history
+  
+  // Scanner States
+  const [showScanner, setShowScanner] = useState(false);
+  const [permissionDenied, setPermissionDenied] = useState(false);
 
   useEffect(() => {
     loadData();
@@ -51,13 +56,21 @@ export const SalesScreen = ({ onBack }) => {
         const invId = sale.invoice_id || `LEGACY-${sale.id}`;
         if (!grouped[invId]) {
           grouped[invId] = {
+            id: invId, // Consistent ID property
             invoice_id: invId,
             total_amount: 0,
             date: new Date(sale.created_at).toLocaleDateString('en-GB'),
-            created_at: sale.created_at
+            created_at: sale.created_at,
+            method: 'غير محدد', // Default, ideally fetch from sales if stored
+            items: []
           };
         }
         grouped[invId].total_amount += Number(sale.total_price);
+        grouped[invId].items.push({
+          name: sale.product_name,
+          quantity: sale.quantity,
+          selling_price: sale.total_price / sale.quantity
+        });
       });
       const invoiceList = Object.values(grouped).sort((a, b) => 
         new Date(b.created_at) - new Date(a.created_at)
@@ -152,14 +165,15 @@ export const SalesScreen = ({ onBack }) => {
 
     setLoading(false);
     
-    setLastInvoice({
+    const newInvoice = {
       id: invoiceId,
-      date: saleDate,
+      date: new Date().toLocaleDateString('en-GB'),
       items: cart,
       total: totalAmount,
       method: paymentMethod
-    });
+    };
 
+    setSelectedInvoice(newInvoice);
     setShowModal(false);
     setShowInvoice(true);
     setCart([]);
@@ -170,24 +184,30 @@ export const SalesScreen = ({ onBack }) => {
     }
   };
 
-  // FIX: Robust Print for APK (PDF Save)
+  const handleInvoiceClick = (inv) => {
+    // Ensure total is calculated if missing
+    const total = inv.total_amount || inv.items.reduce((s, i) => s + (i.selling_price * i.quantity), 0);
+    setSelectedInvoice({
+      ...inv,
+      total: total,
+      method: inv.method || 'غير محدد'
+    });
+    setShowInvoice(true);
+  };
+
   const handlePrint = () => {
     playBeep();
-    
     const element = document.getElementById('invoice-content');
     if (element) {
       const opt = {
         margin: 0.2,
-        filename: `invoice-${lastInvoice.id}.pdf`,
+        filename: `invoice-${selectedInvoice.id}.pdf`,
         image: { type: 'jpeg', quality: 0.98 },
         html2canvas: { scale: 2, useCORS: true },
         jsPDF: { unit: 'in', format: 'a4', orientation: 'portrait' }
       };
-      
-      // Force save which works in Android WebViews
       html2pdf().set(opt).from(element).save().catch(err => {
         console.error("PDF generation failed", err);
-        // Last resort
         window.print();
       });
     } else {
@@ -195,39 +215,92 @@ export const SalesScreen = ({ onBack }) => {
     }
   };
 
-  // FIX: Robust Share with WhatsApp Fallback for APK
   const handleShare = async () => {
     playBeep();
     
     let text = `*فاتورة مبيعات*\n`;
-    text += `رقم الفاتورة: #${lastInvoice.id}\n`;
-    text += `التاريخ: ${lastInvoice.date}\n`;
-    text += `طريقة الدفع: ${lastInvoice.method}\n`;
+    text += `رقم الفاتورة: #${selectedInvoice.id}\n`;
+    text += `التاريخ: ${selectedInvoice.date}\n`;
+    text += `طريقة الدفع: ${selectedInvoice.method}\n`;
     text += `----------------\n`;
-    lastInvoice.items.forEach(item => {
+    selectedInvoice.items.forEach(item => {
       text += `${item.name} (x${item.quantity}) - ${(item.selling_price * item.quantity).toLocaleString()}\n`;
     });
     text += `----------------\n`;
-    text += `*المجموع الكلي: ${lastInvoice.total.toLocaleString()} ج.س*\n`;
+    text += `*المجموع الكلي: ${selectedInvoice.total.toLocaleString()} ج.س*\n`;
 
-    // Try Native Share first
-    if (navigator.share) {
+    // Try to share PDF if possible
+    const element = document.getElementById('invoice-content');
+    if (element && navigator.share) {
       try {
-        await navigator.share({
-          title: 'فاتورة مبيعات',
-          text: text,
-        });
-      } catch (error) {
-        // Fallback if share is cancelled or fails
-        console.log('Share failed, falling back to WhatsApp');
-        const whatsappUrl = `https://wa.me/?text=${encodeURIComponent(text)}`;
-        window.open(whatsappUrl, '_blank');
+        const opt = {
+          margin: 0.2,
+          filename: `invoice-${selectedInvoice.id}.pdf`,
+          image: { type: 'jpeg', quality: 0.98 },
+          html2canvas: { scale: 2, useCORS: true },
+          jsPDF: { unit: 'in', format: 'a4', orientation: 'portrait' }
+        };
+        
+        // Generate Blob
+        const pdfBlob = await html2pdf().set(opt).from(element).output('blob');
+        const file = new File([pdfBlob], `invoice-${selectedInvoice.id}.pdf`, { type: 'application/pdf' });
+
+        if (navigator.canShare && navigator.canShare({ files: [file] })) {
+           await navigator.share({
+             files: [file],
+             title: 'فاتورة مبيعات',
+             text: text
+           });
+           return;
+        }
+      } catch (e) {
+        console.log("File share failed, falling back to text", e);
+      }
+    }
+
+    // Fallback to Text Share (WhatsApp)
+    const whatsappUrl = `https://wa.me/?text=${encodeURIComponent(text)}`;
+    window.open(whatsappUrl, '_blank');
+  };
+
+  // Scanner Logic
+  const handleScanSuccess = useCallback((decodedText) => {
+    playBeep();
+    setShowScanner(false);
+    setPermissionDenied(false);
+    
+    // Find product by barcode
+    const product = products.find(p => p.barcode === decodedText);
+    if (product) {
+      // If modal is open, add to cart inside modal
+      if (showModal) {
+         handleAddProductToCart(product.id);
+         setToast({ show: true, message: `تم إضافة ${product.name}` });
+      } else {
+         // If modal is closed, open modal and add to cart
+         setShowModal(true);
+         // Need to wait for modal state, but we can just init cart with it
+         // Since setState is async, we better just open modal and let user scan inside or handle it via effect.
+         // Simpler: Just add to cart state and open modal
+         setCart(prev => {
+            const existing = prev.find(i => i.id === product.id);
+            if (existing) return prev.map(i => i.id === product.id ? {...i, quantity: i.quantity + 1} : i);
+            return [...prev, {...product, quantity: 1}];
+         });
+         setToast({ show: true, message: `تم إضافة ${product.name}` });
       }
     } else {
-      // Direct Fallback for APK/WebView
-      const whatsappUrl = `https://wa.me/?text=${encodeURIComponent(text)}`;
-      window.open(whatsappUrl, '_blank');
+      alert('المنتج غير موجود');
     }
+  }, [products, showModal]);
+
+  const handlePermissionError = useCallback(() => {
+    setPermissionDenied(true);
+  }, []);
+
+  const handleCloseScanner = () => {
+    setShowScanner(false);
+    setPermissionDenied(false);
   };
 
   return (
@@ -250,9 +323,12 @@ export const SalesScreen = ({ onBack }) => {
         <h1 className="text-xl font-bold flex-1 text-center mx-2 pt-1">المبيعات</h1>
         
         <div className="flex items-center gap-3">
-          <div className="p-2 bg-white/10 rounded-xl">
+          <button 
+            onClick={() => { setShowScanner(true); setPermissionDenied(false); }}
+            className="p-2 bg-white/10 rounded-xl hover:bg-white/20 active:scale-95 transition-all"
+          >
             <ScanBarcode size={24} strokeWidth={2} />
-          </div>
+          </button>
           
           <button 
             onClick={() => setShowModal(true)}
@@ -265,6 +341,51 @@ export const SalesScreen = ({ onBack }) => {
           </button>
         </div>
       </div>
+
+      {/* Scanner Overlay */}
+      {showScanner && (
+        <div className="absolute inset-0 z-[70] bg-black flex flex-col items-center justify-center p-4">
+           <div className="w-full max-w-sm relative">
+             <button 
+               onClick={handleCloseScanner}
+               className="absolute -top-12 right-0 z-20 bg-white/20 p-2 rounded-full text-white hover:bg-white/40"
+             >
+               <X size={24} />
+             </button>
+             
+             <div className="bg-black rounded-3xl overflow-hidden relative min-h-[350px] border-4 border-[#00695c] shadow-2xl">
+                {!permissionDenied ? (
+                  <>
+                    <div id="reader" className="w-full h-full"></div>
+                    <ScannerComponent 
+                      onScanSuccess={handleScanSuccess} 
+                      onPermissionError={handlePermissionError} 
+                    />
+                    <div className="absolute bottom-4 left-0 right-0 text-center">
+                      <p className="text-white/80 text-sm font-bold animate-pulse">جاري البحث عن باركود...</p>
+                    </div>
+                  </>
+                ) : (
+                  <div className="absolute inset-0 bg-gray-900 flex flex-col items-center justify-center p-6 text-center text-white">
+                    <div className="w-20 h-20 bg-[#00695c] rounded-full flex items-center justify-center mb-6 shadow-lg animate-pulse">
+                      <Settings size={40} className="text-white" />
+                    </div>
+                    <h3 className="text-2xl font-bold mb-4">إعدادات الكاميرا</h3>
+                    <p className="text-gray-300 text-base mb-8 leading-relaxed max-w-xs">
+                      للمتابعة، يرجى السماح بالوصول للكاميرا من إعدادات المتصفح.
+                    </p>
+                    <button 
+                      onClick={() => window.location.reload()}
+                      className="bg-white text-[#00695c] px-8 py-4 rounded-xl font-bold text-lg hover:bg-gray-100 transition-colors w-full shadow-md"
+                    >
+                      تحديث الصفحة
+                    </button>
+                  </div>
+                )}
+             </div>
+           </div>
+        </div>
+      )}
 
       <div className="px-4 py-3 flex items-center gap-2 text-[#00695c] font-bold text-xs border-b border-[#00695c]/10 shrink-0 bg-[#FFF9C4]">
         <div className="w-8 text-center">ت</div>
@@ -281,7 +402,11 @@ export const SalesScreen = ({ onBack }) => {
         ) : (
           <div className="flex flex-col gap-2">
             {invoices.map((inv, index) => (
-              <div key={inv.invoice_id} className="bg-white rounded-lg p-3 shadow-sm border border-gray-100 flex items-center gap-2 h-12">
+              <button 
+                key={inv.id} 
+                onClick={() => handleInvoiceClick(inv)}
+                className="bg-white rounded-lg p-3 shadow-sm border border-gray-100 flex items-center gap-2 h-12 w-full active:bg-gray-50 transition-colors"
+              >
                 <div className="w-8 text-center font-bold text-gray-400 text-sm">
                   {index + 1}
                 </div>
@@ -294,7 +419,7 @@ export const SalesScreen = ({ onBack }) => {
                 <div className="w-20 text-center font-medium text-gray-500 text-xs dir-ltr">
                   {inv.date}
                 </div>
-              </div>
+              </button>
             ))}
           </div>
         )}
@@ -313,18 +438,26 @@ export const SalesScreen = ({ onBack }) => {
             <div className="flex-1 overflow-y-auto p-4 flex flex-col gap-4">
               <div className="bg-gray-50 p-3 rounded-xl border border-gray-200">
                 <label className="block text-[#00695c] text-xs font-bold mb-2 text-right">بيع منتج جديد</label>
-                <select
-                  value={selectedProductId}
-                  onChange={(e) => handleAddProductToCart(e.target.value)}
-                  className="w-full h-12 px-4 rounded-xl border-2 border-[#00695c] focus:outline-none focus:ring-2 focus:ring-[#00695c]/50 text-right font-medium bg-white appearance-none"
-                >
-                  <option value="">اختر المنتج لإضافته للسلة...</option>
-                  {products.map(p => (
-                    <option key={p.id} value={p.id}>
-                      {p.name} (متاح: {p.quantity} | سعر: {p.selling_price})
-                    </option>
-                  ))}
-                </select>
+                <div className="flex gap-2">
+                   <select
+                    value={selectedProductId}
+                    onChange={(e) => handleAddProductToCart(e.target.value)}
+                    className="flex-1 h-12 px-4 rounded-xl border-2 border-[#00695c] focus:outline-none focus:ring-2 focus:ring-[#00695c]/50 text-right font-medium bg-white appearance-none"
+                  >
+                    <option value="">اختر المنتج...</option>
+                    {products.map(p => (
+                      <option key={p.id} value={p.id}>
+                        {p.name} (متاح: {p.quantity} | {p.selling_price})
+                      </option>
+                    ))}
+                  </select>
+                  <button 
+                    onClick={() => { setShowScanner(true); setPermissionDenied(false); }}
+                    className="w-12 h-12 bg-[#00695c] text-white rounded-xl flex items-center justify-center active:scale-95"
+                  >
+                    <ScanBarcode size={24} />
+                  </button>
+                </div>
               </div>
               <div className="flex flex-col gap-2">
                 {cart.map((item) => (
@@ -366,20 +499,20 @@ export const SalesScreen = ({ onBack }) => {
         </div>
       )}
 
-      {showInvoice && lastInvoice && (
+      {showInvoice && selectedInvoice && (
         <div className="fixed inset-0 z-[60] flex items-center justify-center p-4">
           <div className="absolute inset-0 bg-black/60 backdrop-blur-sm" onClick={() => setShowInvoice(false)} />
           <div className="bg-white w-full max-w-sm rounded-none sm:rounded-lg shadow-2xl overflow-hidden relative z-10 animate-in zoom-in duration-200 print:w-full print:h-full print:fixed print:inset-0">
             <div id="invoice-content" className="p-8 text-center bg-white">
               <div className="w-16 h-16 bg-[#00695c] rounded-full flex items-center justify-center mx-auto mb-4 text-white"><ShoppingCart size={32} /></div>
               <h2 className="text-2xl font-bold text-gray-800 mb-1">فاتورة مبيعات</h2>
-              <p className="text-gray-500 text-sm mb-6">رقم الفاتورة: #{lastInvoice.id}</p>
+              <p className="text-gray-500 text-sm mb-6">رقم الفاتورة: #{selectedInvoice.id}</p>
               <div className="border-t border-b border-gray-200 py-4 mb-4">
-                <div className="flex justify-between text-sm text-gray-500 mb-2"><span>التاريخ:</span><span>{lastInvoice.date}</span></div>
-                <div className="flex justify-between text-sm text-gray-500"><span>طريقة الدفع:</span><span>{lastInvoice.method}</span></div>
+                <div className="flex justify-between text-sm text-gray-500 mb-2"><span>التاريخ:</span><span>{selectedInvoice.date}</span></div>
+                <div className="flex justify-between text-sm text-gray-500"><span>طريقة الدفع:</span><span>{selectedInvoice.method}</span></div>
               </div>
               <div className="flex flex-col gap-2 mb-6">
-                {lastInvoice.items.map((item, idx) => (
+                {selectedInvoice.items.map((item, idx) => (
                   <div key={idx} className="flex justify-between items-center text-sm">
                     <div className="text-right"><span className="font-bold text-gray-800 block">{item.name}</span><span className="text-gray-400 text-xs">x{item.quantity}</span></div>
                     <span className="font-bold text-gray-800">{(item.selling_price * item.quantity).toLocaleString()}</span>
@@ -387,7 +520,7 @@ export const SalesScreen = ({ onBack }) => {
                 ))}
               </div>
               <div className="border-t-2 border-dashed border-gray-300 pt-4 mb-8">
-                <div className="flex justify-between items-center"><span className="font-bold text-xl text-gray-800">المجموع الكلي</span><span className="font-black text-2xl text-[#00695c]">{lastInvoice.total.toLocaleString()}</span></div>
+                <div className="flex justify-between items-center"><span className="font-bold text-xl text-gray-800">المجموع الكلي</span><span className="font-black text-2xl text-[#00695c]">{selectedInvoice.total.toLocaleString()}</span></div>
               </div>
             </div>
             
@@ -403,4 +536,58 @@ export const SalesScreen = ({ onBack }) => {
       )}
     </div>
   );
+};
+
+// Reused Optimized Scanner Component
+const ScannerComponent = ({ onScanSuccess, onPermissionError }) => {
+  const scannerRef = useRef(null);
+
+  useEffect(() => {
+    const html5QrCode = new Html5Qrcode("reader");
+    scannerRef.current = html5QrCode;
+
+    const config = { 
+      fps: 30, // High Performance
+      qrbox: { width: 250, height: 250 },
+      aspectRatio: 1.0,
+      experimentalFeatures: {
+        useBarCodeDetectorIfSupported: true
+      },
+      videoConstraints: {
+        facingMode: "environment",
+        focusMode: "continuous"
+      }
+    };
+    
+    html5QrCode.start(
+      { facingMode: "environment" }, 
+      config,
+      (decodedText) => {
+        html5QrCode.stop().then(() => {
+           onScanSuccess(decodedText);
+        }).catch(err => console.error("Stop failed", err));
+      },
+      (errorMessage) => {
+        // ignore frame errors
+      }
+    ).catch(err => {
+      const isPermissionError = err?.name === 'NotAllowedError' || err?.name === 'NotFoundError' || err?.toString().includes('Permission');
+      if (isPermissionError) {
+        onPermissionError();
+      } else {
+        console.error("Error starting scanner", err);
+      }
+    });
+
+    return () => {
+      if (scannerRef.current && scannerRef.current.isScanning) {
+        scannerRef.current.stop().catch(err => console.warn("Cleanup stop failed", err));
+      }
+      try {
+         scannerRef.current.clear();
+      } catch(e) { /* ignore */ }
+    };
+  }, [onScanSuccess, onPermissionError]);
+
+  return null;
 };

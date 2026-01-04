@@ -293,7 +293,6 @@ const ProductModal = ({ product, currentUser, onClose, onSuccess }) => {
     setPermissionDenied(true);
   }, []);
 
-  // FIX: Safe Scanner Close to prevent White Screen
   const handleCloseScanner = () => {
     setShowScanner(false);
     setPermissionDenied(false);
@@ -437,25 +436,32 @@ const ProductModal = ({ product, currentUser, onClose, onSuccess }) => {
   );
 };
 
+// Optimized Scanner Component
 const ScannerComponent = ({ onScanSuccess, onPermissionError }) => {
   const scannerRef = useRef(null);
 
   useEffect(() => {
-    // FIX: Optimized Scanner Initialization
     const html5QrCode = new Html5Qrcode("reader");
     scannerRef.current = html5QrCode;
 
+    // High Performance Configuration
     const config = { 
-      fps: 15, // Increased FPS for faster reading
+      fps: 30, // Increased FPS for instant scanning
       qrbox: { width: 250, height: 250 },
-      aspectRatio: 1.0
+      aspectRatio: 1.0,
+      experimentalFeatures: {
+        useBarCodeDetectorIfSupported: true // Use native barcode detector for speed
+      },
+      videoConstraints: {
+        facingMode: "environment",
+        focusMode: "continuous" // Auto-focus
+      }
     };
     
     html5QrCode.start(
       { facingMode: "environment" }, 
       config,
       (decodedText) => {
-        // Stop scanning immediately on success
         html5QrCode.stop().then(() => {
            onScanSuccess(decodedText);
         }).catch(err => console.error("Stop failed", err));
@@ -472,12 +478,10 @@ const ScannerComponent = ({ onScanSuccess, onPermissionError }) => {
       }
     });
 
-    // FIX: Robust Cleanup to prevent White Screen on Unmount
     return () => {
       if (scannerRef.current && scannerRef.current.isScanning) {
         scannerRef.current.stop().catch(err => console.warn("Cleanup stop failed", err));
       }
-      // Clear is important but must be safe
       try {
          scannerRef.current.clear();
       } catch(e) { /* ignore */ }
