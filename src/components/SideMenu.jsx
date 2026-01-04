@@ -31,9 +31,10 @@ export const SideMenu = ({ isOpen, onClose, onOpenRegistration, onNavigate, onOp
 
       if (data && data.length > 0) {
         const date = new Date(data[0].created_at);
-        const day = date.toLocaleDateString('ar-EG', { weekday: 'long', year: 'numeric', month: 'numeric', day: 'numeric' });
+        // تنسيق التاريخ والوقت كما هو مطلوب
+        const day = date.toLocaleDateString('ar-EG', { year: 'numeric', month: 'numeric', day: 'numeric' });
         const time = date.toLocaleTimeString('ar-EG', { hour: '2-digit', minute: '2-digit' });
-        setLastBackup(`${day} / ${time}`);
+        setLastBackup(`${day} ${time}`);
       }
     } catch (e) {
       console.error("Error fetching backup", e);
@@ -48,7 +49,7 @@ export const SideMenu = ({ isOpen, onClose, onOpenRegistration, onNavigate, onOp
     setBackupLoading(true);
     
     try {
-      // 1. جلب كافة البيانات
+      // 1. جلب كافة البيانات الخاصة بالمستخدم
       const tables = ['products', 'categories', 'sales', 'expenses', 'treasury_balances', 'workers', 'wholesalers', 'customers', 'purchases'];
       const backupPayload = { meta: { username: currentUser.username, date: new Date().toISOString() } };
 
@@ -73,7 +74,7 @@ export const SideMenu = ({ isOpen, onClose, onOpenRegistration, onNavigate, onOp
       }
     } catch (e) {
       console.error("Backup Exception:", e);
-      alert('فشلت العملية.');
+      alert('فشلت العملية. يرجى المحاولة لاحقاً.');
     } finally {
       setBackupLoading(false);
     }
@@ -114,7 +115,7 @@ export const SideMenu = ({ isOpen, onClose, onOpenRegistration, onNavigate, onOp
           action: handleCreateBackup,
           description: lastBackup ? `آخر نسخة كانت في ${lastBackup}` : 'لم يتم إنشاء نسخة احتياطية بعد'
         },
-        { icon: RotateCcw, label: 'استعادة نسخة احتياطية', color: '#f57c00', action: () => onClose() }, 
+        { icon: RotateCcw, label: 'استعادة نسخة احتياطية', color: '#f57c00', action: () => { onClose(); alert('سيتم تفعيل الاستعادة قريباً'); } }, 
         { 
           icon: Trash2, 
           label: 'حذف البيانات', 

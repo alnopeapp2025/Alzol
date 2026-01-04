@@ -54,10 +54,10 @@ export const TopBar = ({ onOpenRegistration, onNavigate, currentUser, onLogout, 
         {/* Right Side (Visually Left in RTL) - Login/User */}
         <div className="flex items-center gap-2 relative">
           {currentUser ? (
-            <div className="relative flex flex-col items-center">
+            <div className="relative flex flex-col items-center justify-center">
               <button 
                 onClick={handleUserIconClick}
-                className="p-1 hover:bg-[#005c4b] rounded-full transition-colors active:scale-95 flex items-center justify-center"
+                className="p-1 hover:bg-[#005c4b] rounded-full transition-colors active:scale-95 flex items-center justify-center relative z-10"
               >
                 <img 
                   src="https://cdn-icons-png.flaticon.com/512/4140/4140048.png" 
@@ -67,7 +67,7 @@ export const TopBar = ({ onOpenRegistration, onNavigate, currentUser, onLogout, 
               </button>
               
               {/* Welcome Text - Thin Red - Positioned below icon */}
-              <span className="text-[10px] text-red-200 font-light mt-1 leading-none absolute -bottom-4 w-max text-center shadow-sm tracking-wide">
+              <span className="absolute -bottom-5 w-max text-[10px] text-red-300 font-light tracking-wide bg-[#00695c]/80 px-1 rounded-md">
                 مرحباً: {currentUser.username}
               </span>
               
@@ -75,7 +75,7 @@ export const TopBar = ({ onOpenRegistration, onNavigate, currentUser, onLogout, 
               <AnimatePresence>
                 {isUserMenuOpen && (
                   <>
-                    <div className="fixed inset-0 z-10" onClick={() => setIsUserMenuOpen(false)}></div>
+                    <div className="fixed inset-0 z-0" onClick={() => setIsUserMenuOpen(false)}></div>
                     <motion.div 
                       initial={{ opacity: 0, y: 10, scale: 0.95 }}
                       animate={{ opacity: 1, y: 0, scale: 1 }}
