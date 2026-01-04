@@ -2,7 +2,7 @@ import React, { useState, useEffect } from 'react';
 import { motion, AnimatePresence } from 'framer-motion';
 import { 
   Save, RotateCcw, Trash2, Settings, 
-  Info, Star, Share2, Lock, Phone, X, LogIn, Crown, LogOut
+  Star, Share2, Lock, Phone, X, LogIn, Crown, LogOut, Mail
 } from 'lucide-react';
 import { playSound } from '../utils/soundManager';
 import { supabase } from '../lib/supabaseClient';
@@ -11,6 +11,7 @@ import { fetchData } from '../lib/dataService';
 export const SideMenu = ({ isOpen, onClose, onOpenRegistration, onNavigate, onOpenPro, currentUser, onLogout }) => {
   const [lastBackup, setLastBackup] = useState(null);
   const [backupLoading, setBackupLoading] = useState(false);
+  const [showDeleteModal, setShowDeleteModal] = useState(false);
 
   useEffect(() => {
     if (isOpen && currentUser) {
@@ -30,10 +31,11 @@ export const SideMenu = ({ isOpen, onClose, onOpenRegistration, onNavigate, onOp
 
       if (data && data.length > 0) {
         const date = new Date(data[0].created_at);
-        // تنسيق التاريخ والوقت
-        const formattedDate = date.toLocaleDateString('ar-EG', { year: 'numeric', month: 'numeric', day: 'numeric' });
-        const formattedTime = date.toLocaleTimeString('ar-EG', { hour: '2-digit', minute: '2-digit' });
-        setLastBackup(`${formattedDate} ${formattedTime}`);
+        // تنسيق الوقت كما هو مطلوب: يوم/ساعة/دقيقة
+        // Format: Day/Hour/Minute
+        const day = date.toLocaleDateString('ar-EG', { weekday: 'long', year: 'numeric', month: 'numeric', day: 'numeric' });
+        const time = date.toLocaleTimeString('ar-EG', { hour: '2-digit', minute: '2-digit' });
+        setLastBackup(`${day} / ${time}`);
       }
     } catch (e) {
       console.error("Error fetching backup", e);
@@ -49,7 +51,6 @@ export const SideMenu = ({ isOpen, onClose, onOpenRegistration, onNavigate, onOp
     
     try {
       // 1. جلب كافة البيانات من جميع الجداول
-      // Fetch all data from all tables
       const [products, categories, sales, expenses, treasury, workers, wholesalers, customers, purchases] = await Promise.all([
         fetchData('products'),
         fetchData('categories'),
@@ -63,7 +64,6 @@ export const SideMenu = ({ isOpen, onClose, onOpenRegistration, onNavigate, onOp
       ]);
 
       // 2. فلترة البيانات الخاصة بالمستخدم الحالي فقط
-      // Filter data to ensure only current user's data is backed up
       const filterByUser = (arr) => arr ? arr.filter(item => item.user_id == currentUser.id) : [];
 
       const backupPayload = {
@@ -84,7 +84,6 @@ export const SideMenu = ({ isOpen, onClose, onOpenRegistration, onNavigate, onOp
       };
 
       // 3. إرسال البيانات إلى جدول النسخ الاحتياطي
-      // Insert into backups table
       const { error } = await supabase.from('backups').insert([{
         user_id: currentUser.id,
         backup_data: backupPayload
@@ -103,6 +102,15 @@ export const SideMenu = ({ isOpen, onClose, onOpenRegistration, onNavigate, onOp
     } finally {
       setBackupLoading(false);
     }
+  };
+
+  const handleDeleteRequest = () => {
+    const email = "Alnope2025delete@gmail.com";
+    const subject = "طلب حذف بيانات الحساب";
+    const body = `مرحباً فريق الدعم،%0D%0A%0D%0Aأرغب في حذف حسابي وكافة بياناتي من تطبيق مخزنك نهائياً.%0D%0A%0D%0Aبيانات الحساب:%0D%0Aاسم المستخدم/رقم الهاتف: ${currentUser?.username || 'غير مسجل'}%0D%0A%0D%0Aشكراً لكم.`;
+    
+    window.location.href = `mailto:${email}?subject=${subject}&body=${body}`;
+    setShowDeleteModal(false);
   };
 
   const menuGroups = [
@@ -177,7 +185,7 @@ export const SideMenu = ({ isOpen, onClose, onOpenRegistration, onNavigate, onOp
     {
       title: 'حول التطبيق',
       items: [
-        { icon: Info, label: 'من نحن', color: '#0288d1' },
+        // Removed "About Us" as requested
         { icon: Star, label: 'قيم التطبيق', color: '#fbc02d' },
         { icon: Share2, label: 'مشاركة التطبيق', color: '#7b1fa2' },
         { 
@@ -189,7 +197,18 @@ export const SideMenu = ({ isOpen, onClose, onOpenRegistration, onNavigate, onOp
             onNavigate('privacy-policy');
           }
         },
-        { icon: Trash2, label: 'حذف بياناتي', color: '#c2185b' },
+        { 
+          icon: Trash2, 
+          label: 'حذف بياناتي', 
+          color: '#c2185b',
+          action: () => {
+            if (!currentUser) {
+              alert('يرجى تسجيل الدخول أولاً');
+              return;
+            }
+            setShowDeleteModal(true);
+          }
+        },
         { icon: Phone, label: 'اتصل بنا', color: '#00796b' }
       ]
     }
@@ -208,7 +227,7 @@ export const SideMenu = ({ isOpen, onClose, onOpenRegistration, onNavigate, onOp
             className="fixed inset-0 bg-black/50 z-[60] backdrop-blur-sm"
           />
           
-          {/* Drawer - Slides from Right (RTL standard) */}
+          {/* Drawer */}
           <motion.div
             initial={{ x: '100%' }}
             animate={{ x: 0 }}
@@ -262,6 +281,39 @@ export const SideMenu = ({ isOpen, onClose, onOpenRegistration, onNavigate, onOp
               ))}
             </div>
           </motion.div>
+
+          {/* Delete Data Modal */}
+          {showDeleteModal && (
+            <div className="fixed inset-0 z-[80] flex items-center justify-center p-4">
+              <div className="absolute inset-0 bg-black/60 backdrop-blur-sm" onClick={() => setShowDeleteModal(false)} />
+              <motion.div 
+                initial={{ scale: 0.9, opacity: 0 }}
+                animate={{ scale: 1, opacity: 1 }}
+                className="bg-white w-full max-w-sm rounded-3xl p-6 relative z-90 shadow-2xl text-center"
+              >
+                <div className="w-16 h-16 bg-red-50 rounded-full flex items-center justify-center mx-auto mb-4 text-red-500">
+                  <Trash2 size={32} />
+                </div>
+                <h3 className="text-xl font-bold text-gray-800 mb-2">حذف بياناتي</h3>
+                <p className="text-gray-600 text-sm leading-relaxed mb-6">
+                  نأسف لرؤيتك تغادر. لحذف حسابك وكافة بياناتك نهائياً من خوادمنا، يرجى الضغط أدناه لإرسال طلب الحذف الرسمي عبر البريد الإلكتروني.
+                </p>
+                <button 
+                  onClick={handleDeleteRequest}
+                  className="w-full bg-red-500 text-white h-12 rounded-xl font-bold shadow-md hover:bg-red-600 flex items-center justify-center gap-2 active:scale-95 transition-transform"
+                >
+                  <Mail size={20} />
+                  <span>إرسال طلب الحذف</span>
+                </button>
+                <button 
+                  onClick={() => setShowDeleteModal(false)}
+                  className="mt-4 text-gray-400 text-sm font-medium hover:text-gray-600"
+                >
+                  إلغاء
+                </button>
+              </motion.div>
+            </div>
+          )}
         </>
       )}
     </AnimatePresence>
