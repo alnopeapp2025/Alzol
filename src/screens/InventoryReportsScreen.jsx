@@ -1,6 +1,6 @@
 import React, { useState, useEffect } from 'react';
 import { ArrowRight, Package, TrendingUp, DollarSign, AlertTriangle } from 'lucide-react';
-import { fetchData } from '../lib/dataService'; // Use Data Service
+import { fetchData } from '../lib/dataService'; // Use Data Service for Offline Support
 
 export const InventoryReportsScreen = ({ onBack }) => {
   const [stats, setStats] = useState({
@@ -63,7 +63,7 @@ export const InventoryReportsScreen = ({ onBack }) => {
           <h3 className="text-gray-500 text-xs font-bold mb-1">{title}</h3>
           <div className={`text-xl font-black ${isAlert ? 'text-red-600' : 'text-gray-800'}`}>
             {typeof value === 'number' ? value.toLocaleString() : value}
-            {!isAlert && title.includes('قيمة') && <span className="text-[10px] text-gray-400 mr-1 font-medium">ج.س</span>}
+            {!isAlert && title.includes('مجموع') && <span className="text-[10px] text-gray-400 mr-1 font-medium">ج.س</span>}
           </div>
         </div>
       </div>
@@ -97,7 +97,7 @@ export const InventoryReportsScreen = ({ onBack }) => {
 
           {/* Total Purchase Value - Updated Label */}
           <StatCard 
-            title="قيمة شراء المخزون" 
+            title="مجموع تكلفة شراء المخزون" 
             value={stats.totalPurchaseValue} 
             icon={DollarSign} 
             color="#f57c00" 
@@ -105,7 +105,7 @@ export const InventoryReportsScreen = ({ onBack }) => {
 
           {/* Total Selling Value - Updated Label */}
           <StatCard 
-            title="قيمة تكلفه بيع المخزون" 
+            title="مجموع بيع المخزون" 
             value={stats.totalSellingValue} 
             icon={TrendingUp} 
             color="#2e7d32" 

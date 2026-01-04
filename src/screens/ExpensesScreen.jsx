@@ -1,6 +1,6 @@
 import React, { useState, useEffect } from 'react';
 import { ArrowRight, Plus, Wallet, AlertCircle, Calendar, Save, X, Trash2, Edit } from 'lucide-react';
-import { supabase } from '../lib/supabaseClient';
+import { fetchData, insertData, updateData, deleteData } from '../lib/dataService'; // Use Data Service
 import { Toast } from '../components/Toast';
 import { ConfirmDialog } from '../components/ConfirmDialog';
 
@@ -25,20 +25,21 @@ export const ExpensesScreen = ({ onBack }) => {
   });
 
   useEffect(() => {
-    fetchExpenses();
-    fetchBalances();
+    loadData();
   }, []);
 
+  const loadData = async () => {
+    await fetchExpenses();
+    await fetchBalances();
+  };
+
   const fetchExpenses = async () => {
-    const { data } = await supabase
-      .from('expenses')
-      .select('*')
-      .order('created_at', { ascending: false });
+    const data = await fetchData('expenses');
     if (data) setExpenses(data);
   };
 
   const fetchBalances = async () => {
-    const { data } = await supabase.from('treasury_balances').select('name, amount');
+    const data = await fetchData('treasury_balances');
     if (data) {
       const balanceMap = {};
       data.forEach(item => {
@@ -70,42 +71,44 @@ export const ExpensesScreen = ({ onBack }) => {
     }
 
     setLoading(true);
+    let isOfflineOp = false;
 
     if (isEditing && selectedExpense) {
       const oldAmount = parseFloat(selectedExpense.amount);
       const diff = amount - oldAmount;
 
-      const { error: updateError } = await supabase
-        .from('expenses')
-        .update({
-          name: formData.name,
-          amount: amount
-        })
-        .eq('id', selectedExpense.id);
+      const { error, isOffline } = await updateData('expenses', selectedExpense.id, {
+        name: formData.name,
+        amount: amount
+      });
 
-      if (!updateError) {
-        const currentTreasuryBalance = balances[selectedExpense.payment_method] || 0;
-        const newTreasuryBalance = currentTreasuryBalance - diff;
+      if (!error) {
+        if (isOffline) isOfflineOp = true;
+        
+        // Update Treasury
+        const treasuryData = await fetchData('treasury_balances');
+        const balanceItem = treasuryData.find(d => d.name === selectedExpense.payment_method);
+        if (balanceItem) {
+          await updateData('treasury_balances', balanceItem.id, {
+            amount: Number(balanceItem.amount) - diff
+          });
+        }
 
-        await supabase
-          .from('treasury_balances')
-          .update({ amount: newTreasuryBalance })
-          .eq('name', selectedExpense.payment_method);
-
-        setToast({ show: true, message: 'تم تحديث المصروف بنجاح' });
+        setToast({ show: true, message: isOffline ? 'تم التحديث (وضع عدم الاتصال)' : 'تم تحديث المصروف بنجاح' });
       } else {
         alert('حدث خطأ أثناء التحديث');
       }
     } else {
-      const { error } = await supabase.from('expenses').insert([{
+      const { error, isOffline } = await insertData('expenses', {
         name: formData.name,
         amount: amount,
         payment_method: formData.payment_method,
         expense_date: getFormattedDate()
-      }]);
+      });
 
       if (!error) {
-        setToast({ show: true, message: 'تمت إضافة المصروف بنجاح' });
+        if (isOffline) isOfflineOp = true;
+        setToast({ show: true, message: isOffline ? 'تم الحفظ (وضع عدم الاتصال)' : 'تمت إضافة المصروف بنجاح' });
       } else {
         alert('حدث خطأ أثناء الحفظ');
       }
@@ -116,8 +119,9 @@ export const ExpensesScreen = ({ onBack }) => {
     setIsEditing(false);
     setSelectedExpense(null);
     setFormData({ name: '', amount: '', payment_method: 'رصيد بنكك' });
-    fetchExpenses();
-    fetchBalances();
+    
+    // Refresh Data
+    loadData();
   };
 
   const handleExpenseClick = (item) => {
@@ -139,9 +143,9 @@ export const ExpensesScreen = ({ onBack }) => {
 
   const handleDelete = async () => {
     if (!selectedExpense) return;
-    const { error } = await supabase.from('expenses').delete().eq('id', selectedExpense.id);
+    const { error, isOffline } = await deleteData('expenses', selectedExpense.id);
     if (!error) {
-      setToast({ show: true, message: 'تم حذف المصروف بنجاح' });
+      setToast({ show: true, message: isOffline ? 'تم الحذف (وضع عدم الاتصال)' : 'تم حذف المصروف بنجاح' });
       fetchExpenses();
     }
     setShowDeleteConfirm(false);
@@ -322,7 +326,6 @@ export const ExpensesScreen = ({ onBack }) => {
                     <option value="رصيد بنك فيصل">رصيد بنك فيصل</option>
                     <option value="بنك أم درمان">بنك أم درمان</option>
                     <option value="بنك آخر">بنك آخر</option>
-                    {/* Removed Cash/Cash option as requested */}
                   </select>
                   {!isEditing && (
                     <div className="absolute left-4 top-1/2 -translate-y-1/2 pointer-events-none text-[#00695c]">

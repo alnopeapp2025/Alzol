@@ -1,6 +1,6 @@
 import React, { useState, useEffect } from 'react';
 import { ArrowRight, Plus, Minus, ShoppingCart, X, Save, Printer, Share2, Trash2, ScanBarcode } from 'lucide-react';
-import { supabase } from '../lib/supabaseClient';
+import { fetchData, insertData, updateData } from '../lib/dataService'; // Use Data Service for Offline
 import { Toast } from '../components/Toast';
 
 // Sound Utility
@@ -36,16 +36,17 @@ export const SalesScreen = ({ onBack }) => {
   const [lastInvoice, setLastInvoice] = useState(null);
 
   useEffect(() => {
-    fetchInvoices();
-    fetchProducts();
+    loadData();
   }, []);
 
+  const loadData = async () => {
+    await fetchInvoices();
+    await fetchProducts();
+  };
+
   const fetchInvoices = async () => {
-    // Fetch raw sales data
-    const { data } = await supabase
-      .from('sales')
-      .select('*')
-      .order('created_at', { ascending: false });
+    // Fetch raw sales data using dataService (supports offline)
+    const data = await fetchData('sales');
 
     if (data) {
       // Group by invoice_id locally
@@ -75,8 +76,11 @@ export const SalesScreen = ({ onBack }) => {
   };
 
   const fetchProducts = async () => {
-    const { data } = await supabase.from('products').select('*').gt('quantity', 0);
-    if (data) setProducts(data);
+    const data = await fetchData('products');
+    if (data) {
+      // Filter products with quantity > 0
+      setProducts(data.filter(p => p.quantity > 0));
+    }
   };
 
   const handleAddProductToCart = (productId) => {
@@ -129,34 +133,33 @@ export const SalesScreen = ({ onBack }) => {
     const totalAmount = calculateTotal();
     const invoiceId = Math.floor(Math.random() * 1000000).toString();
     const saleDate = new Date().toLocaleString('ar-EG');
+    let isOfflineTransaction = false;
 
-    // 1. Process each item
+    // 1. Process each item (Insert Sale + Update Product)
     for (const item of cart) {
-      await supabase.from('sales').insert([{
+      const { isOffline: saleOffline } = await insertData('sales', {
         product_name: item.name,
         quantity: item.quantity,
         total_price: item.selling_price * item.quantity,
         invoice_id: invoiceId
-      }]);
+      });
 
       const productRef = products.find(p => p.id === item.id);
-      await supabase.from('products')
-        .update({ quantity: productRef.quantity - item.quantity })
-        .eq('id', item.id);
+      const { isOffline: prodOffline } = await updateData('products', item.id, { 
+        quantity: productRef.quantity - item.quantity 
+      });
+      
+      if (saleOffline || prodOffline) isOfflineTransaction = true;
     }
 
     // 2. Update Treasury
-    const { data: balanceData } = await supabase
-      .from('treasury_balances')
-      .select('amount')
-      .eq('name', paymentMethod)
-      .single();
+    const treasuryData = await fetchData('treasury_balances');
+    const balanceItem = treasuryData.find(d => d.name === paymentMethod);
 
-    if (balanceData) {
-      await supabase
-        .from('treasury_balances')
-        .update({ amount: balanceData.amount + totalAmount })
-        .eq('name', paymentMethod);
+    if (balanceItem) {
+      await updateData('treasury_balances', balanceItem.id, { 
+        amount: Number(balanceItem.amount) + totalAmount 
+      });
     }
 
     setLoading(false);
@@ -172,8 +175,13 @@ export const SalesScreen = ({ onBack }) => {
     setShowModal(false);
     setShowInvoice(true);
     setCart([]);
-    fetchInvoices();
-    fetchProducts();
+    
+    // Refresh data
+    loadData();
+    
+    if (isOfflineTransaction) {
+      setToast({ show: true, message: 'تم حفظ العملية (وضع عدم الاتصال)' });
+    }
   };
 
   const handlePrint = () => {
@@ -274,7 +282,7 @@ export const SalesScreen = ({ onBack }) => {
         )}
       </div>
 
-      {/* Sales Cart Modal (Unchanged Logic, just ensuring presence) */}
+      {/* Sales Cart Modal */}
       {showModal && (
         <div className="fixed inset-0 z-50 flex items-start justify-center p-4 pt-20">
           <div className="absolute inset-0 bg-black/50 backdrop-blur-sm" onClick={() => setShowModal(false)} />
@@ -341,7 +349,7 @@ export const SalesScreen = ({ onBack }) => {
         </div>
       )}
 
-      {/* Invoice Modal (Unchanged) */}
+      {/* Invoice Modal */}
       {showInvoice && lastInvoice && (
         <div className="fixed inset-0 z-[60] flex items-center justify-center p-4">
           <div className="absolute inset-0 bg-black/60 backdrop-blur-sm" onClick={() => setShowInvoice(false)} />

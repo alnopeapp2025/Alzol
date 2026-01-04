@@ -1,11 +1,11 @@
 import React, { useState, useEffect } from 'react';
 import { ArrowRight, TrendingUp } from 'lucide-react';
-import { supabase } from '../lib/supabaseClient';
+import { fetchData } from '../lib/dataService'; // Use Data Service for Offline
 
 export const TreasuryScreen = ({ onBack }) => {
   const [totalTreasury, setTotalTreasury] = useState(0);
   
-  // Initial Buttons (Excluding the new bank from buttons list as requested)
+  // Initial Buttons
   const [treasuryData, setTreasuryData] = useState([
     { id: 'bok', name: 'رصيد بنكك', amount: 0, color: '#d32f2f', textColor: 'text-white' }, // Red
     { id: 'fib', name: 'رصيد بنك فيصل', amount: 0, color: '#fbc02d', textColor: 'text-gray-900' }, // Yellow
@@ -14,20 +14,14 @@ export const TreasuryScreen = ({ onBack }) => {
   ]);
 
   useEffect(() => {
-    fetchData();
-    
-    const subscription = supabase
-      .channel('treasury_updates')
-      .on('postgres_changes', { event: '*', schema: 'public', table: 'treasury_balances' }, fetchData)
-      .subscribe();
-
-    return () => {
-      subscription.unsubscribe();
-    };
+    loadData();
+    // In a real app with offline support, we might poll or use a listener on localStorage for updates
+    // For now, simple load on mount is sufficient
   }, []);
 
-  const fetchData = async () => {
-    const { data } = await supabase.from('treasury_balances').select('*');
+  const loadData = async () => {
+    const data = await fetchData('treasury_balances');
+    
     if (data && data.length > 0) {
       // 1. Update UI Buttons
       setTreasuryData(prevData => {
@@ -37,9 +31,7 @@ export const TreasuryScreen = ({ onBack }) => {
         });
       });
 
-      // 2. Calculate Total Treasury (Sum of ALL bank balances from DB, including hidden ones)
-      // Filter out 'كاش نقدا' if we only want banks, assuming 'كاش نقدا' is cash.
-      // The prompt says "sum of bank balances only".
+      // 2. Calculate Total Treasury (Sum of ALL bank balances)
       const total = data
         .filter(d => d.name !== 'كاش نقدا') 
         .reduce((sum, item) => sum + Number(item.amount), 0);

@@ -1,6 +1,6 @@
 import React, { useState, useEffect } from 'react';
 import { ArrowRight, Plus, HardHat, Calendar, Clock, DollarSign, Briefcase, X, Save, Trash2 } from 'lucide-react';
-import { supabase } from '../lib/supabaseClient';
+import { fetchData, insertData, deleteData } from '../lib/dataService'; // Use Data Service for Offline
 import { Toast } from '../components/Toast';
 import { ConfirmDialog } from '../components/ConfirmDialog';
 
@@ -23,9 +23,9 @@ export const WorkersScreen = ({ onBack }) => {
   });
 
   useEffect(() => {
-    fetchWorkers();
+    loadWorkers();
     
-    // Calculate Date Limits (Today and 7 days back)
+    // Calculate Date Limits
     const now = new Date();
     const maxDate = now.toISOString().slice(0, 16); // Current datetime
     
@@ -42,8 +42,8 @@ export const WorkersScreen = ({ onBack }) => {
     return () => clearInterval(timer);
   }, []);
 
-  const fetchWorkers = async () => {
-    const { data } = await supabase.from('workers').select('*').order('created_at', { ascending: false });
+  const loadWorkers = async () => {
+    const data = await fetchData('workers');
     if (data) setWorkers(data);
   };
 
@@ -52,19 +52,19 @@ export const WorkersScreen = ({ onBack }) => {
     if (!formData.name || !formData.salary || !formData.start_date) return;
 
     setLoading(true);
-    const { error } = await supabase.from('workers').insert([{
+    const { error, isOffline } = await insertData('workers', {
       name: formData.name,
       salary: formData.salary,
       job_title: formData.job_title,
       start_date: new Date(formData.start_date).toISOString()
-    }]);
+    });
 
     setLoading(false);
     if (!error) {
-      setToast({ show: true, message: 'تم إضافة الموظف بنجاح' });
+      setToast({ show: true, message: isOffline ? 'تم الحفظ (وضع عدم الاتصال)' : 'تم إضافة الموظف بنجاح' });
       setShowModal(false);
       setFormData({ name: '', salary: '', job_title: '', start_date: '' });
-      fetchWorkers();
+      loadWorkers();
     } else {
       alert('حدث خطأ أثناء الإضافة');
     }
@@ -72,9 +72,9 @@ export const WorkersScreen = ({ onBack }) => {
 
   const handleDelete = async () => {
     if (!deleteDialog.id) return;
-    const { error } = await supabase.from('workers').delete().eq('id', deleteDialog.id);
+    const { error, isOffline } = await deleteData('workers', deleteDialog.id);
     if (!error) {
-      setToast({ show: true, message: 'تم حذف الموظف بنجاح' });
+      setToast({ show: true, message: isOffline ? 'تم الحذف (وضع عدم الاتصال)' : 'تم حذف الموظف بنجاح' });
       setWorkers(workers.filter(w => w.id !== deleteDialog.id));
     }
     setDeleteDialog({ show: false, id: null });
