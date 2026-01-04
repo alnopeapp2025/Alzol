@@ -66,8 +66,8 @@ export const TopBar = ({ onOpenRegistration, onNavigate, currentUser, onLogout, 
                   className="w-9 h-9 rounded-full border-2 border-white/50 shadow-sm bg-white"
                 />
               </button>
-              {/* Welcome Text - Thin Red */}
-              <span className="text-[10px] text-red-300 font-thin mt-0.5 leading-none absolute -bottom-3 w-max text-center shadow-sm">
+              {/* Welcome Text - Thin Red - Updated Color for visibility */}
+              <span className="text-[10px] text-red-200 font-light mt-0.5 leading-none absolute -bottom-4 w-max text-center shadow-sm tracking-wide">
                 مرحباً: {currentUser.username}
               </span>
               

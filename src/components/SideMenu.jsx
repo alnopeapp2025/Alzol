@@ -2,7 +2,7 @@ import React, { useState, useEffect } from 'react';
 import { motion, AnimatePresence } from 'framer-motion';
 import { 
   Save, RotateCcw, Trash2, Settings, 
-  Info, Star, Share2, Lock, Phone, X, LogIn, Crown, LogOut, CheckCircle 
+  Info, Star, Share2, Lock, Phone, X, LogIn, Crown, LogOut
 } from 'lucide-react';
 import { playSound } from '../utils/soundManager';
 import { supabase } from '../lib/supabaseClient';
@@ -20,17 +20,23 @@ export const SideMenu = ({ isOpen, onClose, onOpenRegistration, onNavigate, onOp
 
   const fetchLastBackup = async () => {
     if (!currentUser) return;
-    const { data, error } = await supabase
-      .from('backups')
-      .select('created_at')
-      .eq('user_id', currentUser.id)
-      .order('created_at', { ascending: false })
-      .limit(1);
+    try {
+      const { data, error } = await supabase
+        .from('backups')
+        .select('created_at')
+        .eq('user_id', currentUser.id)
+        .order('created_at', { ascending: false })
+        .limit(1);
 
-    if (data && data.length > 0) {
-      const date = new Date(data[0].created_at);
-      const formatted = `${date.toLocaleDateString('en-GB')} ${date.toLocaleTimeString('en-US', { hour: '2-digit', minute: '2-digit' })}`;
-      setLastBackup(formatted);
+      if (data && data.length > 0) {
+        const date = new Date(data[0].created_at);
+        // تنسيق التاريخ والوقت بالعربية
+        const formattedDate = date.toLocaleDateString('ar-EG', { year: 'numeric', month: 'numeric', day: 'numeric' });
+        const formattedTime = date.toLocaleTimeString('ar-EG', { hour: '2-digit', minute: '2-digit' });
+        setLastBackup(`${formattedDate} ${formattedTime}`);
+      }
+    } catch (e) {
+      console.error("Error fetching backup", e);
     }
   };
 
@@ -80,8 +86,9 @@ export const SideMenu = ({ isOpen, onClose, onOpenRegistration, onNavigate, onOp
 
       if (!error) {
         await fetchLastBackup();
-        alert('تم إنشاء النسخة الاحتياطية بنجاح');
+        alert('تم إنشاء النسخة الاحتياطية وحفظها في السحابة بنجاح');
       } else {
+        console.error(error);
         alert('حدث خطأ أثناء النسخ الاحتياطي');
       }
     } catch (e) {
