@@ -17,9 +17,9 @@ import { SettingsScreen } from './screens/SettingsScreen';
 import { EditProfileScreen } from './screens/EditProfileScreen';
 import { WorkersScreen } from './screens/WorkersScreen';
 import { WholesalersScreen } from './screens/WholesalersScreen';
-import { CustomersScreen } from './screens/CustomersScreen'; // New
-import { PurchasesScreen } from './screens/PurchasesScreen'; // New
-import { FinalReportsScreen } from './screens/FinalReportsScreen'; // New
+import { CustomersScreen } from './screens/CustomersScreen';
+import { PurchasesScreen } from './screens/PurchasesScreen';
+import { FinalReportsScreen } from './screens/FinalReportsScreen';
 import { ProModal } from './components/ProModal';
 import { playSound } from './utils/soundManager';
 import { syncData } from './lib/dataService'; 
@@ -87,11 +87,11 @@ function App() {
     } else if (title === 'المبيعات') {
       setCurrentScreen('sales');
     } else if (title === 'المشتريات') {
-      setCurrentScreen('purchases'); // Now Active
+      setCurrentScreen('purchases');
     } else if (title === 'تقارير المخزن') {
       setCurrentScreen('inventory-reports');
     } else if (title === 'التقارير النهائية') {
-      setCurrentScreen('final-reports'); // Now Active
+      setCurrentScreen('final-reports');
     } else if (title === 'الآلة الحاسبة') {
       setIsCalculatorOpen(true);
     } else if (title === 'عمال ورواتب') {
@@ -99,7 +99,7 @@ function App() {
     } else if (title === 'تجار الجملة') {
       setCurrentScreen('wholesalers');
     } else if (title === 'العملاء') {
-      setCurrentScreen('customers'); // Now Active
+      setCurrentScreen('customers');
     } else {
       console.log(`Clicked ${title}`);
     }
