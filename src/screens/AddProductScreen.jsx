@@ -1,7 +1,7 @@
 import React, { useState, useEffect, useCallback, useRef } from 'react';
 import { ArrowRight, Search, Plus, Save, ScanBarcode, X, ArrowDown, Trash2, Settings, UserPlus } from 'lucide-react';
 import { fetchData, insertData, updateData, deleteData } from '../lib/dataService';
-import { Html5Qrcode } from 'html5-qrcode'; 
+import { Html5Qrcode, Html5QrcodeSupportedFormats } from 'html5-qrcode'; 
 import { Toast } from '../components/Toast';
 import { ConfirmDialog } from '../components/ConfirmDialog';
 
@@ -39,8 +39,10 @@ export const AddProductScreen = ({ onBack, currentUser, onOpenRegistration }) =>
   const loadProducts = async () => {
     const data = await fetchData('products');
     let filtered = data;
-    if (currentUser) {
-      filtered = data.filter(p => p.user_id === currentUser.id);
+    
+    // FIXED: Robust ID comparison (handle string vs number mismatch)
+    if (currentUser && currentUser.id) {
+      filtered = data.filter(p => p.user_id == currentUser.id);
     } else {
       filtered = data.filter(p => !p.user_id);
     }
@@ -383,7 +385,7 @@ const ProductModal = ({ product, currentUser, onClose, onSuccess }) => {
             />
             {product && (
               <button 
-                type="button"
+                type="button" 
                 onClick={() => setShowDeleteConfirm(true)}
                 className="absolute left-1 top-1 bottom-1 w-10 flex items-center justify-center text-red-500 hover:bg-red-50 rounded-lg transition-colors"
               >
@@ -444,17 +446,28 @@ const ScannerComponent = ({ onScanSuccess, onPermissionError }) => {
     const html5QrCode = new Html5Qrcode("reader");
     scannerRef.current = html5QrCode;
 
-    // High Performance Configuration
+    // High Performance Configuration for Instant Scan
     const config = { 
-      fps: 30, // Increased FPS for instant scanning
+      fps: 50, // Increased FPS for instant scanning
       qrbox: { width: 250, height: 250 },
       aspectRatio: 1.0,
       experimentalFeatures: {
         useBarCodeDetectorIfSupported: true // Use native barcode detector for speed
       },
+      // Limit formats to common retail codes to speed up processing
+      formatsToSupport: [
+        Html5QrcodeSupportedFormats.EAN_13,
+        Html5QrcodeSupportedFormats.EAN_8,
+        Html5QrcodeSupportedFormats.UPC_A,
+        Html5QrcodeSupportedFormats.UPC_E,
+        Html5QrcodeSupportedFormats.CODE_128
+      ],
       videoConstraints: {
         facingMode: "environment",
-        focusMode: "continuous" // Auto-focus
+        focusMode: "continuous",
+        // Use 720p for better performance on mobile than full res
+        width: { min: 640, ideal: 1280, max: 1280 },
+        height: { min: 480, ideal: 720, max: 720 }
       }
     };
     

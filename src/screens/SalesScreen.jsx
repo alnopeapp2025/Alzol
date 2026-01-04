@@ -3,7 +3,7 @@ import { ArrowRight, Plus, Minus, ShoppingCart, X, Save, Printer, Share2, Trash2
 import { fetchData, insertData, updateData } from '../lib/dataService'; 
 import { Toast } from '../components/Toast';
 import html2pdf from 'html2pdf.js'; 
-import { Html5Qrcode } from 'html5-qrcode';
+import { Html5Qrcode, Html5QrcodeSupportedFormats } from 'html5-qrcode';
 
 const playBeep = () => {
   try {
@@ -33,7 +33,7 @@ export const SalesScreen = ({ onBack }) => {
   const [cart, setCart] = useState([]);
   const [selectedProductId, setSelectedProductId] = useState('');
   const [paymentMethod, setPaymentMethod] = useState('رصيد بنكك');
-  const [selectedInvoice, setSelectedInvoice] = useState(null); // For viewing history
+  const [selectedInvoice, setSelectedInvoice] = useState(null); 
   
   // Scanner States
   const [showScanner, setShowScanner] = useState(false);
@@ -56,12 +56,12 @@ export const SalesScreen = ({ onBack }) => {
         const invId = sale.invoice_id || `LEGACY-${sale.id}`;
         if (!grouped[invId]) {
           grouped[invId] = {
-            id: invId, // Consistent ID property
+            id: invId,
             invoice_id: invId,
             total_amount: 0,
             date: new Date(sale.created_at).toLocaleDateString('en-GB'),
             created_at: sale.created_at,
-            method: 'غير محدد', // Default, ideally fetch from sales if stored
+            method: 'غير محدد',
             items: []
           };
         }
@@ -135,7 +135,6 @@ export const SalesScreen = ({ onBack }) => {
 
     const totalAmount = calculateTotal();
     const invoiceId = Math.floor(Math.random() * 1000000).toString();
-    const saleDate = new Date().toLocaleString('ar-EG');
     let isOfflineTransaction = false;
 
     for (const item of cart) {
@@ -185,7 +184,6 @@ export const SalesScreen = ({ onBack }) => {
   };
 
   const handleInvoiceClick = (inv) => {
-    // Ensure total is calculated if missing
     const total = inv.total_amount || inv.items.reduce((s, i) => s + (i.selling_price * i.quantity), 0);
     setSelectedInvoice({
       ...inv,
@@ -195,6 +193,7 @@ export const SalesScreen = ({ onBack }) => {
     setShowInvoice(true);
   };
 
+  // --- FIXED PRINT FUNCTION FOR APK ---
   const handlePrint = () => {
     playBeep();
     const element = document.getElementById('invoice-content');
@@ -206,32 +205,23 @@ export const SalesScreen = ({ onBack }) => {
         html2canvas: { scale: 2, useCORS: true },
         jsPDF: { unit: 'in', format: 'a4', orientation: 'portrait' }
       };
+      
+      // .save() is safer for APKs than window.print() as it triggers a download
       html2pdf().set(opt).from(element).save().catch(err => {
         console.error("PDF generation failed", err);
-        window.print();
+        alert("تعذر إنشاء ملف PDF");
       });
-    } else {
-      window.print();
     }
   };
 
+  // --- FIXED SHARE FUNCTION FOR APK ---
   const handleShare = async () => {
     playBeep();
-    
-    let text = `*فاتورة مبيعات*\n`;
-    text += `رقم الفاتورة: #${selectedInvoice.id}\n`;
-    text += `التاريخ: ${selectedInvoice.date}\n`;
-    text += `طريقة الدفع: ${selectedInvoice.method}\n`;
-    text += `----------------\n`;
-    selectedInvoice.items.forEach(item => {
-      text += `${item.name} (x${item.quantity}) - ${(item.selling_price * item.quantity).toLocaleString()}\n`;
-    });
-    text += `----------------\n`;
-    text += `*المجموع الكلي: ${selectedInvoice.total.toLocaleString()} ج.س*\n`;
-
-    // Try to share PDF if possible
     const element = document.getElementById('invoice-content');
-    if (element && navigator.share) {
+    
+    let text = `*فاتورة مبيعات*\nرقم: #${selectedInvoice.id}\nالمبلغ: ${selectedInvoice.total.toLocaleString()}\n`;
+
+    if (element) {
       try {
         const opt = {
           margin: 0.2,
@@ -241,10 +231,11 @@ export const SalesScreen = ({ onBack }) => {
           jsPDF: { unit: 'in', format: 'a4', orientation: 'portrait' }
         };
         
-        // Generate Blob
+        // Generate Blob for sharing
         const pdfBlob = await html2pdf().set(opt).from(element).output('blob');
         const file = new File([pdfBlob], `invoice-${selectedInvoice.id}.pdf`, { type: 'application/pdf' });
 
+        // Check if native sharing is supported (Standard Web Share API)
         if (navigator.canShare && navigator.canShare({ files: [file] })) {
            await navigator.share({
              files: [file],
@@ -252,15 +243,17 @@ export const SalesScreen = ({ onBack }) => {
              text: text
            });
            return;
+        } else {
+           // Fallback if file sharing is not supported in this WebView
+           throw new Error("File sharing not supported");
         }
       } catch (e) {
         console.log("File share failed, falling back to text", e);
+        // Fallback to WhatsApp Text
+        const whatsappUrl = `https://wa.me/?text=${encodeURIComponent(text + " (تعذرت مشاركة الملف، يرجى الطباعة)")}`;
+        window.open(whatsappUrl, '_blank');
       }
     }
-
-    // Fallback to Text Share (WhatsApp)
-    const whatsappUrl = `https://wa.me/?text=${encodeURIComponent(text)}`;
-    window.open(whatsappUrl, '_blank');
   };
 
   // Scanner Logic
@@ -269,19 +262,13 @@ export const SalesScreen = ({ onBack }) => {
     setShowScanner(false);
     setPermissionDenied(false);
     
-    // Find product by barcode
     const product = products.find(p => p.barcode === decodedText);
     if (product) {
-      // If modal is open, add to cart inside modal
       if (showModal) {
          handleAddProductToCart(product.id);
          setToast({ show: true, message: `تم إضافة ${product.name}` });
       } else {
-         // If modal is closed, open modal and add to cart
          setShowModal(true);
-         // Need to wait for modal state, but we can just init cart with it
-         // Since setState is async, we better just open modal and let user scan inside or handle it via effect.
-         // Simpler: Just add to cart state and open modal
          setCart(prev => {
             const existing = prev.find(i => i.id === product.id);
             if (existing) return prev.map(i => i.id === product.id ? {...i, quantity: i.quantity + 1} : i);
@@ -425,6 +412,7 @@ export const SalesScreen = ({ onBack }) => {
         )}
       </div>
 
+      {/* Add Sales Modal */}
       {showModal && (
         <div className="fixed inset-0 z-50 flex items-start justify-center p-4 pt-20">
           <div className="absolute inset-0 bg-black/50 backdrop-blur-sm" onClick={() => setShowModal(false)} />
@@ -499,6 +487,7 @@ export const SalesScreen = ({ onBack }) => {
         </div>
       )}
 
+      {/* Invoice Modal */}
       {showInvoice && selectedInvoice && (
         <div className="fixed inset-0 z-[60] flex items-center justify-center p-4">
           <div className="absolute inset-0 bg-black/60 backdrop-blur-sm" onClick={() => setShowInvoice(false)} />
@@ -538,7 +527,7 @@ export const SalesScreen = ({ onBack }) => {
   );
 };
 
-// Reused Optimized Scanner Component
+// Optimized Scanner Component for Speed
 const ScannerComponent = ({ onScanSuccess, onPermissionError }) => {
   const scannerRef = useRef(null);
 
@@ -547,15 +536,26 @@ const ScannerComponent = ({ onScanSuccess, onPermissionError }) => {
     scannerRef.current = html5QrCode;
 
     const config = { 
-      fps: 30, // High Performance
+      fps: 50, // High Speed (50fps)
       qrbox: { width: 250, height: 250 },
       aspectRatio: 1.0,
       experimentalFeatures: {
         useBarCodeDetectorIfSupported: true
       },
+      // Restrict formats to common retail codes only for speed
+      formatsToSupport: [
+        Html5QrcodeSupportedFormats.EAN_13,
+        Html5QrcodeSupportedFormats.EAN_8,
+        Html5QrcodeSupportedFormats.UPC_A,
+        Html5QrcodeSupportedFormats.UPC_E,
+        Html5QrcodeSupportedFormats.CODE_128
+      ],
       videoConstraints: {
         facingMode: "environment",
-        focusMode: "continuous"
+        focusMode: "continuous",
+        // Lower resolution for faster processing
+        width: { min: 640, ideal: 1280, max: 1280 },
+        height: { min: 480, ideal: 720, max: 720 }
       }
     };
     
