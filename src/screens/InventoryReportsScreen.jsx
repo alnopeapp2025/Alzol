@@ -1,6 +1,6 @@
 import React, { useState, useEffect } from 'react';
 import { ArrowRight, Package, TrendingUp, DollarSign, AlertTriangle } from 'lucide-react';
-import { supabase } from '../lib/supabaseClient';
+import { fetchData } from '../lib/dataService'; // Use Data Service
 
 export const InventoryReportsScreen = ({ onBack }) => {
   const [stats, setStats] = useState({
@@ -17,11 +17,8 @@ export const InventoryReportsScreen = ({ onBack }) => {
 
   const calculateInventoryStats = async () => {
     try {
-      const { data: products, error } = await supabase
-        .from('products')
-        .select('quantity, purchase_price, selling_price, low_stock_alert');
-
-      if (error) throw error;
+      // Use fetchData to support offline mode
+      const products = await fetchData('products');
 
       let totalCount = 0;
       let totalPurchase = 0;
@@ -98,17 +95,17 @@ export const InventoryReportsScreen = ({ onBack }) => {
             color="#1976d2" 
           />
 
-          {/* Total Purchase Value */}
+          {/* Total Purchase Value - Updated Label */}
           <StatCard 
-            title="قيمة المنتجات بسعر الشراء" 
+            title="قيمة شراء المخزون" 
             value={stats.totalPurchaseValue} 
             icon={DollarSign} 
             color="#f57c00" 
           />
 
-          {/* Total Selling Value */}
+          {/* Total Selling Value - Updated Label */}
           <StatCard 
-            title="قيمة المنتجات بعد البيع" 
+            title="قيمة تكلفه بيع المخزون" 
             value={stats.totalSellingValue} 
             icon={TrendingUp} 
             color="#2e7d32" 

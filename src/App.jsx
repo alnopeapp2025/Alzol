@@ -15,9 +15,10 @@ import { PrivacyPolicyScreen } from './screens/PrivacyPolicyScreen';
 import { SystemDataScreen } from './screens/SystemDataScreen';
 import { SettingsScreen } from './screens/SettingsScreen';
 import { EditProfileScreen } from './screens/EditProfileScreen';
-import { WorkersScreen } from './screens/WorkersScreen'; // Import Workers Screen
+import { WorkersScreen } from './screens/WorkersScreen';
 import { ProModal } from './components/ProModal';
 import { playSound } from './utils/soundManager';
+import { syncData } from './lib/dataService'; // Import Sync Service
 
 function App() {
   const [currentScreen, setCurrentScreen] = useState('dashboard');
@@ -26,12 +27,35 @@ function App() {
   const [authTriggerMessage, setAuthTriggerMessage] = useState('');
   const [isProOpen, setIsProOpen] = useState(false);
   const [currentUser, setCurrentUser] = useState(null);
+  const [isOnline, setIsOnline] = useState(navigator.onLine);
 
   useEffect(() => {
+    // 1. Load User from Local Storage (Offline Login Support)
     const savedUser = localStorage.getItem('app_user');
     if (savedUser) {
       setCurrentUser(JSON.parse(savedUser));
     }
+
+    // 2. Setup Online/Offline Listeners
+    const handleOnline = () => {
+      setIsOnline(true);
+      console.log('Back Online! Syncing data...');
+      syncData(); // Auto-sync when internet returns
+    };
+    const handleOffline = () => setIsOnline(false);
+
+    window.addEventListener('online', handleOnline);
+    window.addEventListener('offline', handleOffline);
+
+    // Initial Sync check
+    if (navigator.onLine) {
+      syncData();
+    }
+
+    return () => {
+      window.removeEventListener('online', handleOnline);
+      window.removeEventListener('offline', handleOffline);
+    };
   }, []);
 
   const handleLogin = (user) => {
@@ -76,9 +100,9 @@ function App() {
       setCurrentScreen('inventory-reports');
     } else if (title === 'الآلة الحاسبة') {
       setIsCalculatorOpen(true);
-    } else if (title === 'الضبط') { // Restored Settings
+    } else if (title === 'الضبط') {
       setCurrentScreen('settings');
-    } else if (title === 'العمال والرواتب') { // New Workers Screen
+    } else if (title === 'العمال والرواتب') {
       setCurrentScreen('workers');
     } else {
       console.log(`Clicked ${title}`);
@@ -103,6 +127,13 @@ function App() {
 
   return (
     <div className="min-h-screen bg-[#FFF9C4] flex flex-col font-sans">
+      {/* Offline Indicator */}
+      {!isOnline && (
+        <div className="bg-red-500 text-white text-xs text-center py-1 font-bold">
+          أنت الآن في وضع عدم الاتصال. سيتم حفظ البيانات ومزامنتها تلقائياً عند عودة الإنترنت.
+        </div>
+      )}
+
       <CalculatorModal 
         isOpen={isCalculatorOpen} 
         onClose={() => setIsCalculatorOpen(false)} 

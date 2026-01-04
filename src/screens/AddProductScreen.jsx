@@ -1,6 +1,6 @@
 import React, { useState, useEffect, useCallback } from 'react';
 import { ArrowRight, Search, Plus, Save, ScanBarcode, X, ArrowDown, Trash2, Settings, UserPlus } from 'lucide-react';
-import { supabase } from '../lib/supabaseClient';
+import { fetchData, insertData, updateData, deleteData } from '../lib/dataService'; // Use Data Service
 import { Html5Qrcode } from 'html5-qrcode'; 
 import { Toast } from '../components/Toast';
 import { ConfirmDialog } from '../components/ConfirmDialog';
@@ -30,24 +30,25 @@ export const AddProductScreen = ({ onBack, currentUser, onOpenRegistration }) =>
   const [editingProduct, setEditingProduct] = useState(null);
   const [toast, setToast] = useState({ show: false, message: '' });
   
-  // Guest Limit State
   const [showGuestLimitModal, setShowGuestLimitModal] = useState(false);
 
   useEffect(() => {
-    fetchProducts();
+    loadProducts();
   }, [currentUser]); 
 
-  const fetchProducts = async () => {
-    let query = supabase.from('products').select('*').order('created_at', { ascending: false });
+  const loadProducts = async () => {
+    const data = await fetchData('products');
     
+    // Filter by user if logged in (Offline logic handles this simply by returning all local data for now, 
+    // but in a real multi-user offline app we'd filter local data too. 
+    // For this MVP, we assume local data belongs to the current user context)
+    let filtered = data;
     if (currentUser) {
-      query = query.eq('user_id', currentUser.id);
+      filtered = data.filter(p => p.user_id === currentUser.id);
     } else {
-      query = query.is('user_id', null);
+      filtered = data.filter(p => !p.user_id);
     }
-
-    const { data } = await query;
-    if (data) setProducts(data);
+    setProducts(filtered);
   };
 
   const handleEditClick = (product) => {
@@ -56,12 +57,10 @@ export const AddProductScreen = ({ onBack, currentUser, onOpenRegistration }) =>
   };
 
   const handleAddNew = () => {
-    // Guest Limit Logic: Allow only 3 products for guests
     if (!currentUser && products.length >= 3) {
       setShowGuestLimitModal(true);
       return;
     }
-
     setEditingProduct(null);
     setShowModal(true);
   };
@@ -73,7 +72,7 @@ export const AddProductScreen = ({ onBack, currentUser, onOpenRegistration }) =>
 
   const handleSuccess = (message) => {
     handleModalClose();
-    fetchProducts();
+    loadProducts();
     setToast({ show: true, message });
   };
 
@@ -94,7 +93,6 @@ export const AddProductScreen = ({ onBack, currentUser, onOpenRegistration }) =>
         onClose={() => setToast({ ...toast, show: false })} 
       />
 
-      {/* Guest Limit Modal */}
       {showGuestLimitModal && (
         <div className="fixed inset-0 z-[100] flex items-center justify-center p-4">
           <div className="absolute inset-0 bg-black/50 backdrop-blur-sm" onClick={() => setShowGuestLimitModal(false)} />
@@ -200,7 +198,6 @@ export const AddProductScreen = ({ onBack, currentUser, onOpenRegistration }) =>
         </div>
       </div>
 
-      {/* Modal */}
       {showModal && (
         <ProductModal 
           product={editingProduct}
@@ -225,7 +222,7 @@ const ProductModal = ({ product, currentUser, onClose, onSuccess }) => {
 
   useEffect(() => {
     const fetchCats = async () => {
-      const { data } = await supabase.from('categories').select('id, name');
+      const data = await fetchData('categories');
       if (data) setCategories(data);
     };
     fetchCats();
@@ -250,7 +247,7 @@ const ProductModal = ({ product, currentUser, onClose, onSuccess }) => {
     if (!formData.name) return;
     
     setLoading(true);
-    let error;
+    let error, isOffline;
 
     const payload = {
       ...formData,
@@ -258,21 +255,18 @@ const ProductModal = ({ product, currentUser, onClose, onSuccess }) => {
     };
 
     if (product) {
-      const { error: updateError } = await supabase
-        .from('products')
-        .update(payload)
-        .eq('id', product.id);
-      error = updateError;
+      const res = await updateData('products', product.id, payload);
+      error = res.error;
+      isOffline = res.isOffline;
     } else {
-      const { error: insertError } = await supabase
-        .from('products')
-        .insert([payload]);
-      error = insertError;
+      const res = await insertData('products', payload);
+      error = res.error;
+      isOffline = res.isOffline;
     }
 
     setLoading(false);
     if (!error) {
-      onSuccess(product ? 'تم تحديث البيانات بنجاح' : 'تمت إضافة المنتج بنجاح');
+      onSuccess(isOffline ? 'تم الحفظ (وضع عدم الاتصال)' : (product ? 'تم تحديث البيانات بنجاح' : 'تمت إضافة المنتج بنجاح'));
     } else {
       alert('حدث خطأ في العملية');
     }
@@ -281,14 +275,11 @@ const ProductModal = ({ product, currentUser, onClose, onSuccess }) => {
   const handleDelete = async () => {
     if (!product) return;
     setLoading(true);
-    const { error } = await supabase
-      .from('products')
-      .delete()
-      .eq('id', product.id);
+    const { error, isOffline } = await deleteData('products', product.id);
     
     setLoading(false);
     if (!error) {
-      onSuccess('تم حذف المنتج بنجاح');
+      onSuccess(isOffline ? 'تم الحذف (وضع عدم الاتصال)' : 'تم حذف المنتج بنجاح');
     } else {
       alert('حدث خطأ أثناء الحذف');
     }
@@ -401,13 +392,11 @@ const ProductModal = ({ product, currentUser, onClose, onSuccess }) => {
           </div>
         </div>
         
-        {/* Row 2: Prices (Purchase First [Right], Selling Second [Left]) */}
         <div className="flex gap-3">
              <div className="flex-1"><label className={labelStyles}>سعر الشراء</label><input name="purchase_price" value={formData.purchase_price} onChange={handleChange} type="number" className={inputStyles} placeholder="0.00" /></div>
              <div className="flex-1"><label className={labelStyles}>سعر البيع</label><input name="selling_price" value={formData.selling_price} onChange={handleChange} type="number" className={inputStyles} placeholder="0.00" /></div>
         </div>
 
-        {/* Row 3: Quantity & Low Stock Alert (Split 50/50) */}
         <div className="flex gap-3">
            <div className="flex-1"><label className={labelStyles}>الكمية</label><input name="quantity" value={formData.quantity} onChange={handleChange} type="number" className={inputStyles} placeholder="0" /></div>
            <div className="flex-1"><label className={labelStyles}>تنبيه المخزون</label><input name="low_stock_alert" value={formData.low_stock_alert} onChange={handleChange} type="number" className={inputStyles} placeholder="5" /></div>
@@ -435,7 +424,6 @@ const ProductModal = ({ product, currentUser, onClose, onSuccess }) => {
           </select>
         </div>
         
-        {/* Moved Button Here: Centrally under Category */}
         <button type="submit" disabled={loading} className="w-full bg-[#00695c] text-white h-14 rounded-xl font-bold text-lg shadow-md hover:bg-[#005c4b] flex items-center justify-center gap-2 mt-2 shrink-0">
           <Save size={24} />
           <span>{product ? 'تحديث البيانات' : 'حفظ المنتج'}</span>

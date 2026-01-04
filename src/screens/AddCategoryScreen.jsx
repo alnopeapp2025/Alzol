@@ -1,6 +1,6 @@
 import React, { useState, useEffect } from 'react';
 import { ArrowRight, Trash2, Edit, Plus } from 'lucide-react';
-import { supabase } from '../lib/supabaseClient';
+import { fetchData, insertData, deleteData, updateData } from '../lib/dataService'; // Use Data Service
 import { Toast } from '../components/Toast';
 import { ConfirmDialog } from '../components/ConfirmDialog';
 import { InputDialog } from '../components/InputDialog';
@@ -16,13 +16,12 @@ export const AddCategoryScreen = ({ onBack }) => {
   const [editDialog, setEditDialog] = useState({ show: false, id: null, name: '' });
 
   useEffect(() => {
-    fetchCategories();
+    loadCategories();
   }, []);
 
-  const fetchCategories = async () => {
-    // جلب الأصناف بدون فلترة معقدة لتجنب الأخطاء
-    const { data } = await supabase.from('categories').select('*').order('created_at', { ascending: false });
-    if (data) setCategories(data);
+  const loadCategories = async () => {
+    const data = await fetchData('categories');
+    setCategories(data);
   };
 
   const showToast = (message) => {
@@ -35,22 +34,18 @@ export const AddCategoryScreen = ({ onBack }) => {
 
     setLoading(true);
     
-    // تم إزالة user_id لتفادي خطأ PGRST204 وجعل الإضافة بسيطة ومباشرة
-    const payload = { 
-      name: inputValue
-    };
-
-    const { data, error } = await supabase
-      .from('categories')
-      .insert([payload])
-      .select();
+    const payload = { name: inputValue };
+    const { data, error, isOffline } = await insertData('categories', payload);
 
     if (error) {
-      console.error('Error adding category:', error);
-      alert('حدث خطأ أثناء الإضافة: ' + error.message);
-    } else if (data) {
-      showToast('تمت إضافة الصنف بنجاح');
-      setCategories([data[0], ...categories]);
+      alert('حدث خطأ أثناء الإضافة');
+    } else {
+      showToast(isOffline ? 'تم الحفظ (وضع عدم الاتصال)' : 'تمت إضافة الصنف بنجاح');
+      // Update local state immediately (Optimistic UI handled by dataService returns)
+      if (data) {
+         // Re-fetch to ensure sync with local storage state
+         loadCategories();
+      }
       setInputValue('');
     }
     setLoading(false);
@@ -59,28 +54,22 @@ export const AddCategoryScreen = ({ onBack }) => {
   const confirmDelete = async () => {
     if (!deleteDialog.id) return;
     
-    const { error } = await supabase
-      .from('categories')
-      .delete()
-      .eq('id', deleteDialog.id);
+    const { error, isOffline } = await deleteData('categories', deleteDialog.id);
 
     if (!error) {
       setCategories(categories.filter(c => c.id !== deleteDialog.id));
-      showToast('تم حذف الصنف بنجاح');
+      showToast(isOffline ? 'تم الحذف (وضع عدم الاتصال)' : 'تم حذف الصنف بنجاح');
     }
     setDeleteDialog({ show: false, id: null });
   };
 
   const confirmEdit = async (newName) => {
     if (newName && newName !== editDialog.name) {
-      const { error } = await supabase
-        .from('categories')
-        .update({ name: newName })
-        .eq('id', editDialog.id);
+      const { error, isOffline } = await updateData('categories', editDialog.id, { name: newName });
 
       if (!error) {
         setCategories(categories.map(c => c.id === editDialog.id ? { ...c, name: newName } : c));
-        showToast('تم تحديث الصنف بنجاح');
+        showToast(isOffline ? 'تم التحديث (وضع عدم الاتصال)' : 'تم تحديث الصنف بنجاح');
       }
     }
     setEditDialog({ show: false, id: null, name: '' });
