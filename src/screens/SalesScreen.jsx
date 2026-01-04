@@ -2,7 +2,6 @@ import React, { useState, useEffect, useCallback, useRef } from 'react';
 import { ArrowRight, Plus, Minus, ShoppingCart, X, Save, Printer, Share2, Trash2, ScanBarcode, Settings } from 'lucide-react';
 import { fetchData, insertData, updateData } from '../lib/dataService'; 
 import { Toast } from '../components/Toast';
-import html2pdf from 'html2pdf.js'; 
 import { Html5Qrcode, Html5QrcodeSupportedFormats } from 'html5-qrcode';
 
 const playBeep = () => {
@@ -193,66 +192,29 @@ export const SalesScreen = ({ onBack }) => {
     setShowInvoice(true);
   };
 
-  // --- FIXED PRINT FUNCTION FOR APK ---
+  // --- REVERTED TO BROWSER PRINT ---
   const handlePrint = () => {
     playBeep();
-    const element = document.getElementById('invoice-content');
-    if (element) {
-      const opt = {
-        margin: 0.2,
-        filename: `invoice-${selectedInvoice.id}.pdf`,
-        image: { type: 'jpeg', quality: 0.98 },
-        html2canvas: { scale: 2, useCORS: true },
-        jsPDF: { unit: 'in', format: 'a4', orientation: 'portrait' }
-      };
-      
-      // .save() is safer for APKs than window.print() as it triggers a download
-      html2pdf().set(opt).from(element).save().catch(err => {
-        console.error("PDF generation failed", err);
-        alert("تعذر إنشاء ملف PDF");
-      });
-    }
+    window.print();
   };
 
-  // --- FIXED SHARE FUNCTION FOR APK ---
+  // --- REVERTED TO BROWSER SHARE ---
   const handleShare = async () => {
     playBeep();
-    const element = document.getElementById('invoice-content');
+    const text = `*فاتورة مبيعات*\nرقم: #${selectedInvoice.id}\nالمبلغ: ${selectedInvoice.total.toLocaleString()}\nالتاريخ: ${selectedInvoice.date}`;
     
-    let text = `*فاتورة مبيعات*\nرقم: #${selectedInvoice.id}\nالمبلغ: ${selectedInvoice.total.toLocaleString()}\n`;
-
-    if (element) {
+    if (navigator.share) {
       try {
-        const opt = {
-          margin: 0.2,
-          filename: `invoice-${selectedInvoice.id}.pdf`,
-          image: { type: 'jpeg', quality: 0.98 },
-          html2canvas: { scale: 2, useCORS: true },
-          jsPDF: { unit: 'in', format: 'a4', orientation: 'portrait' }
-        };
-        
-        // Generate Blob for sharing
-        const pdfBlob = await html2pdf().set(opt).from(element).output('blob');
-        const file = new File([pdfBlob], `invoice-${selectedInvoice.id}.pdf`, { type: 'application/pdf' });
-
-        // Check if native sharing is supported (Standard Web Share API)
-        if (navigator.canShare && navigator.canShare({ files: [file] })) {
-           await navigator.share({
-             files: [file],
-             title: 'فاتورة مبيعات',
-             text: text
-           });
-           return;
-        } else {
-           // Fallback if file sharing is not supported in this WebView
-           throw new Error("File sharing not supported");
-        }
-      } catch (e) {
-        console.log("File share failed, falling back to text", e);
-        // Fallback to WhatsApp Text
-        const whatsappUrl = `https://wa.me/?text=${encodeURIComponent(text + " (تعذرت مشاركة الملف، يرجى الطباعة)")}`;
-        window.open(whatsappUrl, '_blank');
+        await navigator.share({
+          title: 'فاتورة مبيعات',
+          text: text
+        });
+      } catch (error) {
+        console.log('Error sharing', error);
       }
+    } else {
+      const url = `https://wa.me/?text=${encodeURIComponent(text)}`;
+      window.open(url, '_blank');
     }
   };
 
@@ -299,7 +261,7 @@ export const SalesScreen = ({ onBack }) => {
       />
 
       {/* Header */}
-      <div className="bg-[#00695c] text-white h-16 flex items-center justify-between px-4 shadow-lg shrink-0 rounded-b-2xl z-10">
+      <div className="bg-[#00695c] text-white h-16 flex items-center justify-between px-4 shadow-lg shrink-0 rounded-b-2xl z-10 print:hidden">
         <button 
           onClick={onBack}
           className="p-2 hover:bg-[#005c4b] rounded-xl transition-colors active:scale-95"
@@ -331,7 +293,7 @@ export const SalesScreen = ({ onBack }) => {
 
       {/* Scanner Overlay */}
       {showScanner && (
-        <div className="absolute inset-0 z-[70] bg-black flex flex-col items-center justify-center p-4">
+        <div className="absolute inset-0 z-[70] bg-black flex flex-col items-center justify-center p-4 print:hidden">
            <div className="w-full max-w-sm relative">
              <button 
                onClick={handleCloseScanner}
@@ -374,14 +336,14 @@ export const SalesScreen = ({ onBack }) => {
         </div>
       )}
 
-      <div className="px-4 py-3 flex items-center gap-2 text-[#00695c] font-bold text-xs border-b border-[#00695c]/10 shrink-0 bg-[#FFF9C4]">
+      <div className="px-4 py-3 flex items-center gap-2 text-[#00695c] font-bold text-xs border-b border-[#00695c]/10 shrink-0 bg-[#FFF9C4] print:hidden">
         <div className="w-8 text-center">ت</div>
         <div className="flex-1 text-center">رقم الفاتورة</div>
         <div className="w-24 text-center">المبلغ</div>
         <div className="w-20 text-center">التاريخ</div>
       </div>
 
-      <div className="flex-1 overflow-y-auto px-4 pb-20 pt-2 custom-scrollbar">
+      <div className="flex-1 overflow-y-auto px-4 pb-20 pt-2 custom-scrollbar print:hidden">
         {invoices.length === 0 ? (
           <div className="text-center text-gray-400 mt-20 font-medium">
             لا توجد مبيعات مسجلة
@@ -414,7 +376,7 @@ export const SalesScreen = ({ onBack }) => {
 
       {/* Add Sales Modal */}
       {showModal && (
-        <div className="fixed inset-0 z-50 flex items-start justify-center p-4 pt-20">
+        <div className="fixed inset-0 z-50 flex items-start justify-center p-4 pt-20 print:hidden">
           <div className="absolute inset-0 bg-black/50 backdrop-blur-sm" onClick={() => setShowModal(false)} />
           <div className="bg-white w-full max-w-md rounded-3xl shadow-2xl overflow-hidden relative z-10 animate-in slide-in-from-top duration-300 flex flex-col max-h-[85vh]">
             <div className="bg-[#00695c] text-white p-4 flex justify-between items-center shrink-0">
@@ -489,11 +451,11 @@ export const SalesScreen = ({ onBack }) => {
 
       {/* Invoice Modal */}
       {showInvoice && selectedInvoice && (
-        <div className="fixed inset-0 z-[60] flex items-center justify-center p-4">
-          <div className="absolute inset-0 bg-black/60 backdrop-blur-sm" onClick={() => setShowInvoice(false)} />
-          <div className="bg-white w-full max-w-sm rounded-none sm:rounded-lg shadow-2xl overflow-hidden relative z-10 animate-in zoom-in duration-200 print:w-full print:h-full print:fixed print:inset-0">
+        <div className="fixed inset-0 z-[60] flex items-center justify-center p-4 print:p-0 print:static">
+          <div className="absolute inset-0 bg-black/60 backdrop-blur-sm print:hidden" onClick={() => setShowInvoice(false)} />
+          <div className="bg-white w-full max-w-sm rounded-none sm:rounded-lg shadow-2xl overflow-hidden relative z-10 animate-in zoom-in duration-200 print:w-full print:h-full print:fixed print:inset-0 print:shadow-none print:rounded-none">
             <div id="invoice-content" className="p-8 text-center bg-white">
-              <div className="w-16 h-16 bg-[#00695c] rounded-full flex items-center justify-center mx-auto mb-4 text-white"><ShoppingCart size={32} /></div>
+              <div className="w-16 h-16 bg-[#00695c] rounded-full flex items-center justify-center mx-auto mb-4 text-white print:text-[#00695c] print:border-2 print:border-[#00695c]"><ShoppingCart size={32} /></div>
               <h2 className="text-2xl font-bold text-gray-800 mb-1">فاتورة مبيعات</h2>
               <p className="text-gray-500 text-sm mb-6">رقم الفاتورة: #{selectedInvoice.id}</p>
               <div className="border-t border-b border-gray-200 py-4 mb-4">
@@ -513,12 +475,12 @@ export const SalesScreen = ({ onBack }) => {
               </div>
             </div>
             
-            <div className="p-4 bg-gray-50 border-t border-gray-100">
-               <div className="flex gap-3 print:hidden">
+            <div className="p-4 bg-gray-50 border-t border-gray-100 print:hidden">
+               <div className="flex gap-3">
                 <button onClick={handlePrint} className="flex-1 bg-gray-800 text-white h-12 rounded-xl font-bold flex items-center justify-center gap-2 hover:bg-gray-900"><Printer size={20} /> طباعة</button>
                 <button onClick={handleShare} className="flex-1 bg-[#00695c] text-white h-12 rounded-xl font-bold flex items-center justify-center gap-2 hover:bg-[#005c4b]"><Share2 size={20} /> إرسال</button>
               </div>
-              <button onClick={() => setShowInvoice(false)} className="mt-4 w-full text-gray-400 hover:text-gray-600 text-sm font-medium print:hidden">إغلاق</button>
+              <button onClick={() => setShowInvoice(false)} className="mt-4 w-full text-gray-400 hover:text-gray-600 text-sm font-medium">إغلاق</button>
             </div>
           </div>
         </div>
