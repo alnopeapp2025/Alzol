@@ -16,9 +16,11 @@ import { SystemDataScreen } from './screens/SystemDataScreen';
 import { SettingsScreen } from './screens/SettingsScreen';
 import { EditProfileScreen } from './screens/EditProfileScreen';
 import { WorkersScreen } from './screens/WorkersScreen';
+import { WholesalersScreen } from './screens/WholesalersScreen'; // New Screen
 import { ProModal } from './components/ProModal';
 import { playSound } from './utils/soundManager';
-import { syncData } from './lib/dataService'; // Import Sync Service
+import { syncData } from './lib/dataService'; 
+import { Briefcase } from 'lucide-react'; // Import Briefcase for the icon override
 
 function App() {
   const [currentScreen, setCurrentScreen] = useState('dashboard');
@@ -27,35 +29,15 @@ function App() {
   const [authTriggerMessage, setAuthTriggerMessage] = useState('');
   const [isProOpen, setIsProOpen] = useState(false);
   const [currentUser, setCurrentUser] = useState(null);
-  const [isOnline, setIsOnline] = useState(navigator.onLine);
-
+  
   useEffect(() => {
-    // 1. Load User from Local Storage (Offline Login Support)
     const savedUser = localStorage.getItem('app_user');
     if (savedUser) {
       setCurrentUser(JSON.parse(savedUser));
     }
-
-    // 2. Setup Online/Offline Listeners
-    const handleOnline = () => {
-      setIsOnline(true);
-      console.log('Back Online! Syncing data...');
-      syncData(); // Auto-sync when internet returns
-    };
-    const handleOffline = () => setIsOnline(false);
-
-    window.addEventListener('online', handleOnline);
-    window.addEventListener('offline', handleOffline);
-
-    // Initial Sync check
     if (navigator.onLine) {
       syncData();
     }
-
-    return () => {
-      window.removeEventListener('online', handleOnline);
-      window.removeEventListener('offline', handleOffline);
-    };
   }, []);
 
   const handleLogin = (user) => {
@@ -81,7 +63,13 @@ function App() {
     localStorage.setItem('app_user', JSON.stringify(updatedUser));
   };
 
-  const allItems = [...screen1Data, ...screen2Data];
+  // Override icon for "عمال ورواتب" (previously Settings)
+  const allItems = [...screen1Data, ...screen2Data].map(item => {
+    if (item.title === 'عمال ورواتب') {
+      return { ...item, icon: Briefcase };
+    }
+    return item;
+  });
 
   const handleCardClick = (title) => {
     playSound('click');
@@ -100,10 +88,10 @@ function App() {
       setCurrentScreen('inventory-reports');
     } else if (title === 'الآلة الحاسبة') {
       setIsCalculatorOpen(true);
-    } else if (title === 'الضبط') {
-      setCurrentScreen('settings');
-    } else if (title === 'العمال والرواتب') {
-      setCurrentScreen('workers');
+    } else if (title === 'عمال ورواتب') { // Renamed from Settings
+      setCurrentScreen('workers'); // Direct to Workers Screen as requested by "Settings -> Workers" change
+    } else if (title === 'تجار الجملة') {
+      setCurrentScreen('wholesalers');
     } else {
       console.log(`Clicked ${title}`);
     }
@@ -124,16 +112,11 @@ function App() {
   if (currentScreen === 'settings') return <SettingsScreen onBack={() => setCurrentScreen('dashboard')} />;
   if (currentScreen === 'edit-profile') return <EditProfileScreen onBack={() => setCurrentScreen('dashboard')} currentUser={currentUser} onUpdateUser={handleUpdateUser} />;
   if (currentScreen === 'workers') return <WorkersScreen onBack={() => setCurrentScreen('dashboard')} />;
+  if (currentScreen === 'wholesalers') return <WholesalersScreen onBack={() => setCurrentScreen('dashboard')} currentUser={currentUser} />;
 
   return (
     <div className="min-h-screen bg-[#FFF9C4] flex flex-col font-sans">
-      {/* Offline Indicator */}
-      {!isOnline && (
-        <div className="bg-red-500 text-white text-xs text-center py-1 font-bold">
-          أنت الآن في وضع عدم الاتصال. سيتم حفظ البيانات ومزامنتها تلقائياً عند عودة الإنترنت.
-        </div>
-      )}
-
+      
       <CalculatorModal 
         isOpen={isCalculatorOpen} 
         onClose={() => setIsCalculatorOpen(false)} 

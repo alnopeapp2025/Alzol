@@ -1,5 +1,5 @@
 import React, { useState } from 'react';
-import { Menu, Share2, LogOut, Edit } from 'lucide-react';
+import { Menu, Share2, LogOut, Edit, LogIn } from 'lucide-react';
 import { SideMenu } from './SideMenu';
 import { playSound } from '../utils/soundManager';
 import { motion, AnimatePresence } from 'framer-motion';
@@ -15,6 +15,10 @@ export const TopBar = ({ onOpenRegistration, onNavigate, currentUser, onLogout, 
 
   const handleShareClick = () => {
     playSound('click');
+    // If logged out, this button now acts as Login trigger
+    if (!currentUser) {
+      onOpenRegistration();
+    }
   };
   
   const handleUserIconClick = () => {
@@ -35,7 +39,7 @@ export const TopBar = ({ onOpenRegistration, onNavigate, currentUser, onLogout, 
   return (
     <>
       <div className="bg-[#00695c] text-white h-16 flex items-center justify-between px-4 shadow-lg sticky top-0 z-50 rounded-b-2xl">
-        {/* Left Side - Menu */}
+        {/* Left Side (Visually Right in RTL) - Menu */}
         <button 
           onClick={handleMenuClick}
           className="p-2 hover:bg-[#005c4b] rounded-xl transition-colors active:scale-95"
@@ -48,7 +52,7 @@ export const TopBar = ({ onOpenRegistration, onNavigate, currentUser, onLogout, 
           مخزنك
         </h1>
 
-        {/* Right Side - Share OR Account */}
+        {/* Right Side (Visually Left in RTL) - Login/User */}
         <div className="flex items-center gap-2 relative">
           {currentUser ? (
             <div className="relative">
@@ -56,7 +60,6 @@ export const TopBar = ({ onOpenRegistration, onNavigate, currentUser, onLogout, 
                 onClick={handleUserIconClick}
                 className="p-1 hover:bg-[#005c4b] rounded-full transition-colors active:scale-95 flex items-center justify-center"
               >
-                {/* Updated User Icon */}
                 <img 
                   src="https://cdn-icons-png.flaticon.com/512/4140/4140048.png" 
                   alt="User" 
@@ -97,9 +100,10 @@ export const TopBar = ({ onOpenRegistration, onNavigate, currentUser, onLogout, 
           ) : (
             <button 
               onClick={handleShareClick}
-              className="p-2 hover:bg-[#005c4b] rounded-xl transition-colors active:scale-95"
+              className="p-2 hover:bg-[#005c4b] rounded-xl transition-colors active:scale-95 flex items-center gap-1"
             >
-              <Share2 size={24} strokeWidth={2} />
+              <LogIn size={24} strokeWidth={2} />
+              <span className="text-xs font-bold hidden sm:inline">دخول</span>
             </button>
           )}
         </div>
