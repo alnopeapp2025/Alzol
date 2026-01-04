@@ -10,8 +10,7 @@ import {
   ClipboardList, 
   FileText, 
   Settings, 
-  Calculator,
-  HardHat
+  Calculator
 } from 'lucide-react';
 
 // Screen 1 Data
@@ -31,11 +30,5 @@ export const screen2Data = [
   { id: 9, title: 'التقارير النهائية', icon: FileText, color: '#616161' }, // Grey
   { id: 10, title: 'تقارير المخزن', icon: ClipboardList, color: '#7b1fa2' }, // Purple
   { id: 11, title: 'الآلة الحاسبة', icon: Calculator, color: '#0277bd' }, // Blue
-  { id: 12, title: 'عمال ورواتب', icon: BriefcaseIconWrapper, color: '#455a64' }, // Renamed Settings
-  // { id: 13, title: 'العمال والرواتب', icon: HardHat, color: '#e65100' }, // Removed duplicate/old button if needed, or kept as separate feature
+  { id: 12, title: 'عمال ورواتب', icon: Settings, color: '#455a64' }, // Icon handled in App.jsx
 ];
-
-// Helper to use Briefcase icon for the renamed settings
-function BriefcaseIconWrapper(props) {
-    return <Settings {...props} />; // Keeping the icon logic simple, mapped in App.jsx
-}
