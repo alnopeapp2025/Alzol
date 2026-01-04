@@ -155,18 +155,25 @@ export const SalesScreen = ({ onBack }) => {
     }
 
     // 3. Update Treasury (Fix: Programmatically Increase Treasury)
+    // Fetch fresh data to ensure we have the latest balances
     const treasuryData = await fetchData('treasury_balances');
     // Find bank by name (exact match)
     const balanceItem = treasuryData.find(d => d.name === paymentMethod);
 
     if (balanceItem) {
+      // Update existing bank balance
       const { isOffline: treasuryOffline } = await updateData('treasury_balances', balanceItem.id, { 
         amount: Number(balanceItem.amount) + totalAmount 
       });
       if (treasuryOffline) isOfflineTransaction = true;
     } else {
-      console.warn("Bank not found for update:", paymentMethod);
-      // Optional: Add logic to create bank entry if missing or handle 'Cash' if not in DB
+      // If bank doesn't exist in DB (e.g. first time use or 'Cash'), create it
+      console.warn("Bank not found, creating new entry:", paymentMethod);
+      const { isOffline: createOffline } = await insertData('treasury_balances', {
+        name: paymentMethod,
+        amount: totalAmount
+      });
+      if (createOffline) isOfflineTransaction = true;
     }
 
     setLoading(false);
