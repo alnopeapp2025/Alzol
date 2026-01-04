@@ -10,19 +10,18 @@ permissions:
 jobs:
   build-and-deploy:
     runs-on: ubuntu-latest
+
     steps:
       - name: Checkout 🛎️
-        uses: actions/checkout@v3
+        uses: actions/checkout@v4
 
       - name: Setup Node.js ⚙️
-        uses: actions/setup-node@v3
+        uses: actions/setup-node@v4
         with:
-          node-version: 18
-          # We remove the cache here to prevent stale cache issues
-          
+          node-version: 20
+          cache: 'yarn'
+
       - name: Install Dependencies 🔧
-        # The magic fix: --no-frozen-lockfile allows the install to proceed 
-        # even if yarn.lock is slightly out of sync.
         run: yarn install --no-frozen-lockfile
 
       - name: Build 🏗️
@@ -32,4 +31,3 @@ jobs:
         uses: JamesIves/github-pages-deploy-action@v4
         with:
           folder: dist
-          branch: gh-pages
