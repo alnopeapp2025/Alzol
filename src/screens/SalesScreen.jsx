@@ -3,6 +3,7 @@ import { ArrowRight, Plus, Minus, ShoppingCart, X, Save, Printer, Share2, Trash2
 import { fetchData, insertData, updateData } from '../lib/dataService'; 
 import { Toast } from '../components/Toast';
 import html2pdf from 'html2pdf.js'; 
+import { Html5Qrcode } from 'html5-qrcode'; // Import Html5Qrcode
 
 const playBeep = () => {
   try {
@@ -238,11 +239,9 @@ export const SalesScreen = ({ onBack }) => {
         jsPDF: { unit: 'mm', format: 'a6', orientation: 'portrait' }
       };
 
-      // Generate PDF Blob
       const blob = await html2pdf().set(opt).from(element).output('blob');
       const file = new File([blob], opt.filename, { type: 'application/pdf' });
 
-      // Try sharing the file
       if (navigator.share && navigator.canShare && navigator.canShare({ files: [file] })) {
         await navigator.share({
           files: [file],
@@ -250,7 +249,6 @@ export const SalesScreen = ({ onBack }) => {
           text: `فاتورة رقم #${selectedInvoice.id}`,
         });
       } else {
-        // Fallback: Download the file
         const url = URL.createObjectURL(blob);
         const a = document.createElement('a');
         a.href = url;
@@ -272,12 +270,16 @@ export const SalesScreen = ({ onBack }) => {
     setShowScanner(false);
     setPermissionDenied(false);
     
+    // Find product by barcode
     const product = products.find(p => p.barcode === decodedText);
+    
     if (product) {
       if (showModal) {
+         // If modal is open, add to cart directly
          handleAddProductToCart(product.id);
          setToast({ show: true, message: `تم إضافة ${product.name}` });
       } else {
+         // If modal is closed, open it and add to cart
          setShowModal(true);
          setCart(prev => {
             const existing = prev.find(i => i.id === product.id);
@@ -339,7 +341,7 @@ export const SalesScreen = ({ onBack }) => {
         </div>
       </div>
 
-      {/* Scanner Overlay */}
+      {/* Scanner Overlay - USING HTML5-QRCODE */}
       {showScanner && (
         <div className="absolute inset-0 z-[70] bg-black flex flex-col items-center justify-center p-4 print:hidden">
            <div className="w-full max-w-sm relative h-full flex flex-col justify-center">
@@ -352,10 +354,17 @@ export const SalesScreen = ({ onBack }) => {
              
              <div className="bg-black rounded-3xl overflow-hidden relative w-full aspect-[3/4] border-4 border-[#00695c] shadow-2xl">
                 {!permissionDenied ? (
-                  <NativeBarcodeScanner 
-                    onScan={handleScanSuccess} 
-                    onError={handlePermissionError} 
-                  />
+                  <>
+                    <div id="sales-reader" className="w-full h-full"></div>
+                    <ScannerComponent 
+                      onScanSuccess={handleScanSuccess} 
+                      onPermissionError={handlePermissionError} 
+                      elementId="sales-reader"
+                    />
+                    <div className="absolute bottom-4 left-0 right-0 text-center pointer-events-none">
+                      <p className="text-white/80 text-sm font-bold animate-pulse">جاري المسح...</p>
+                    </div>
+                  </>
                 ) : (
                   <div className="absolute inset-0 bg-gray-900 flex flex-col items-center justify-center p-6 text-center text-white">
                     <div className="w-20 h-20 bg-[#00695c] rounded-full flex items-center justify-center mb-6 shadow-lg animate-pulse">
@@ -417,19 +426,27 @@ export const SalesScreen = ({ onBack }) => {
         )}
       </div>
 
-      {/* Add Sales Modal */}
+      {/* Add Sales Modal - REDESIGNED LAYOUT */}
       {showModal && (
-        <div className="fixed inset-0 z-50 flex items-start justify-center p-4 pt-20 print:hidden">
+        <div className="fixed top-[64px] bottom-0 left-0 right-0 z-50 flex justify-center items-end sm:items-center print:hidden">
           <div className="absolute inset-0 bg-black/50 backdrop-blur-sm" onClick={() => setShowModal(false)} />
-          <div className="bg-white w-full max-w-md rounded-3xl shadow-2xl overflow-hidden relative z-10 animate-in slide-in-from-top duration-300 flex flex-col max-h-[85vh]">
+          
+          {/* Main Container - Full height below header */}
+          <div className="bg-white w-full max-w-md h-full rounded-t-3xl shadow-2xl overflow-hidden relative z-10 animate-in slide-in-from-bottom duration-300 flex flex-col">
+            
+            {/* Modal Header */}
             <div className="bg-[#00695c] text-white p-4 flex justify-between items-center shrink-0">
               <h2 className="text-lg font-bold">إضافة مبيعات جديدة</h2>
               <button onClick={() => setShowModal(false)} className="p-1 hover:bg-white/20 rounded-full">
                 <X size={24} />
               </button>
             </div>
+
+            {/* Modal Content - Scrollable */}
             <div className="flex-1 overflow-y-auto p-4 flex flex-col gap-4">
-              <div className="bg-gray-50 p-3 rounded-xl border border-gray-200">
+              
+              {/* Product Selection */}
+              <div className="bg-gray-50 p-3 rounded-xl border border-gray-200 shrink-0">
                 <label className="block text-[#00695c] text-xs font-bold mb-2 text-right">بيع منتج جديد</label>
                 <div className="flex gap-2">
                    <select
@@ -452,26 +469,33 @@ export const SalesScreen = ({ onBack }) => {
                   </button>
                 </div>
               </div>
+
+              {/* Cart Items - Smaller Font */}
               <div className="flex flex-col gap-2">
                 {cart.map((item) => (
-                  <div key={item.id} className="bg-white border border-gray-200 rounded-xl p-3 flex items-center justify-between shadow-sm">
+                  <div key={item.id} className="bg-white border border-gray-200 rounded-xl p-2 flex items-center justify-between shadow-sm">
                     <div className="flex-1">
-                      <h4 className="font-bold text-gray-800 text-sm">{item.name}</h4>
-                      <div className="text-xs text-gray-500 flex gap-2 mt-1">
+                      {/* Reduced Font Size to text-xs */}
+                      <h4 className="font-bold text-gray-800 text-xs">{item.name}</h4>
+                      <div className="text-[10px] text-gray-500 flex gap-2 mt-1">
                         <span>سعر: {item.selling_price}</span>
                       </div>
                     </div>
-                    <div className="flex items-center gap-3 bg-gray-50 rounded-lg p-1">
-                      <button onClick={() => updateQuantity(item.id, 1)} className="w-8 h-8 bg-white rounded shadow text-[#00695c] flex items-center justify-center active:scale-90"><Plus size={16} strokeWidth={3} /></button>
-                      <span className="font-bold text-lg w-6 text-center">{item.quantity}</span>
-                      <button onClick={() => updateQuantity(item.id, -1)} className="w-8 h-8 bg-white rounded shadow text-red-500 flex items-center justify-center active:scale-90"><Minus size={16} strokeWidth={3} /></button>
+                    
+                    <div className="flex items-center gap-2 bg-gray-50 rounded-lg p-1">
+                      <button onClick={() => updateQuantity(item.id, 1)} className="w-7 h-7 bg-white rounded shadow text-[#00695c] flex items-center justify-center active:scale-90"><Plus size={14} strokeWidth={3} /></button>
+                      <span className="font-bold text-sm w-5 text-center">{item.quantity}</span>
+                      <button onClick={() => updateQuantity(item.id, -1)} className="w-7 h-7 bg-white rounded shadow text-red-500 flex items-center justify-center active:scale-90"><Minus size={14} strokeWidth={3} /></button>
                     </div>
-                    <button onClick={() => removeFromCart(item.id)} className="mr-3 text-red-400 hover:text-red-600"><Trash2 size={18} /></button>
+                    
+                    <button onClick={() => removeFromCart(item.id)} className="mr-2 text-red-400 hover:text-red-600"><Trash2 size={16} /></button>
                   </div>
                 ))}
               </div>
             </div>
-            <div className="bg-gray-50 p-4 border-t border-gray-200 shrink-0">
+
+            {/* Modal Footer - Fixed at bottom of modal */}
+            <div className="bg-gray-50 p-4 border-t border-gray-200 shrink-0 pb-6">
               <div className="flex justify-between items-center mb-4">
                 <span className="font-bold text-gray-600">المبلغ المطلوب:</span>
                 <span className="font-black text-2xl text-[#00695c]">{calculateTotal().toLocaleString()} <span className="text-sm">ج.س</span></span>
@@ -531,92 +555,77 @@ export const SalesScreen = ({ onBack }) => {
   );
 };
 
-// NativeBarcodeScanner Component (Reused)
-const NativeBarcodeScanner = ({ onScan, onError }) => {
-  const videoRef = useRef(null);
-  const requestRef = useRef(null);
+// Reusable Scanner Component using Html5Qrcode (Same as AddProductScreen)
+const ScannerComponent = ({ onScanSuccess, onPermissionError, elementId }) => {
+  const scannerRef = useRef(null);
 
   useEffect(() => {
-    if (!('BarcodeDetector' in window)) {
-      console.warn("BarcodeDetector not supported.");
-    }
+    // Ensure element exists before starting
+    const element = document.getElementById(elementId);
+    if (!element) return;
 
-    let stream = null;
-    let barcodeDetector = null;
+    const html5QrCode = new Html5Qrcode(elementId);
+    scannerRef.current = html5QrCode;
 
-    if ('BarcodeDetector' in window) {
-      // @ts-ignore
-      barcodeDetector = new window.BarcodeDetector({
-        formats: ['ean_13', 'ean_8', 'upc_a', 'upc_e', 'code_128', 'qr_code']
-      });
-    }
+    const config = { 
+      fps: 10, 
+      qrbox: { width: 250, height: 250 },
+      aspectRatio: 1.0,
+      videoConstraints: {
+        facingMode: { exact: "environment" } // Force back camera
+      }
+    };
+    
+    // Fallback config if exact environment fails
+    const fallbackConfig = {
+        facingMode: "environment"
+    };
 
-    const detectLoop = async () => {
-      if (videoRef.current && videoRef.current.readyState === videoRef.current.HAVE_ENOUGH_DATA && barcodeDetector) {
+    const startScanning = async () => {
         try {
-          const barcodes = await barcodeDetector.detect(videoRef.current);
-          if (barcodes.length > 0) {
-            const code = barcodes[0].rawValue;
-            if (code) {
-              onScan(code);
-              return; 
+            await html5QrCode.start(
+                { facingMode: { exact: "environment" } }, 
+                config,
+                (decodedText) => {
+                    html5QrCode.stop().then(() => {
+                        onScanSuccess(decodedText);
+                    }).catch(err => console.error("Stop failed", err));
+                },
+                (errorMessage) => { }
+            );
+        } catch (err) {
+            console.warn("Exact environment camera failed, trying fallback...", err);
+            try {
+                await html5QrCode.start(
+                    { facingMode: "environment" }, 
+                    config,
+                    (decodedText) => {
+                        html5QrCode.stop().then(() => {
+                            onScanSuccess(decodedText);
+                        }).catch(err => console.error("Stop failed", err));
+                    },
+                    (errorMessage) => { }
+                );
+            } catch (finalErr) {
+                const isPermissionError = finalErr?.name === 'NotAllowedError' || finalErr?.name === 'NotFoundError' || finalErr?.toString().includes('Permission');
+                if (isPermissionError) {
+                    onPermissionError();
+                } else {
+                    console.error("Error starting scanner", finalErr);
+                }
             }
-          }
-        } catch (e) {
-          // Ignore errors
         }
-      }
-      requestRef.current = requestAnimationFrame(detectLoop);
     };
 
-    const startCamera = async () => {
-      try {
-        const constraints = {
-          audio: false,
-          video: {
-            facingMode: 'environment',
-            width: { ideal: 1920 },
-            height: { ideal: 1080 },
-            advanced: [{ focusMode: 'continuous' }]
-          }
-        };
-
-        stream = await navigator.mediaDevices.getUserMedia(constraints);
-        
-        if (videoRef.current) {
-          videoRef.current.srcObject = stream;
-          await videoRef.current.play();
-          requestRef.current = requestAnimationFrame(detectLoop);
-        }
-      } catch (err) {
-        console.error("Camera Error", err);
-        if (err.name === 'NotAllowedError' || err.name === 'NotFoundError') {
-          onError();
-        }
-      }
-    };
-
-    startCamera();
+    startScanning();
 
     return () => {
-      if (requestRef.current) cancelAnimationFrame(requestRef.current);
-      if (stream) {
-        stream.getTracks().forEach(track => track.stop());
+      if (scannerRef.current && scannerRef.current.isScanning) {
+        scannerRef.current.stop().catch(err => console.warn("Cleanup stop failed", err));
       }
+      try { scannerRef.current.clear(); } catch(e) { }
     };
-  }, [onScan, onError]);
+  }, [onScanSuccess, onPermissionError, elementId]);
 
-  return (
-    <div className="relative w-full h-full bg-black">
-      <video ref={videoRef} className="w-full h-full object-cover" playsInline muted />
-      <div className="absolute inset-0 border-2 border-[#00695c]/50 pointer-events-none"></div>
-      <div className="absolute top-1/2 left-1/2 -translate-x-1/2 -translate-y-1/2 w-64 h-40 border-2 border-red-500/50 rounded-lg pointer-events-none box-border shadow-[0_0_0_9999px_rgba(0,0,0,0.5)]">
-        <div className="absolute top-0 left-0 w-4 h-4 border-t-4 border-l-4 border-red-500 -mt-1 -ml-1"></div>
-        <div className="absolute top-0 right-0 w-4 h-4 border-t-4 border-r-4 border-red-500 -mt-1 -mr-1"></div>
-        <div className="absolute bottom-0 left-0 w-4 h-4 border-b-4 border-l-4 border-red-500 -mb-1 -ml-1"></div>
-        <div className="absolute bottom-0 right-0 w-4 h-4 border-b-4 border-r-4 border-red-500 -mb-1 -mr-1"></div>
-        <div className="absolute top-1/2 left-0 right-0 h-0.5 bg-red-500 opacity-50"></div>
-      </div>
-    </div>
-  );
+  return null;
 };

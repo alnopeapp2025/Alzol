@@ -371,10 +371,11 @@ const ProductModal = ({ product, currentUser, onClose, onSuccess, existingProduc
              <div className="bg-black rounded-3xl overflow-hidden relative min-h-[350px] border-4 border-[#00695c] shadow-2xl">
                 {!permissionDenied ? (
                   <>
-                    <div id="reader" className="w-full h-full"></div>
+                    <div id="product-reader" className="w-full h-full"></div>
                     <ScannerComponent 
                       onScanSuccess={handleScanSuccess} 
                       onPermissionError={handlePermissionError} 
+                      elementId="product-reader"
                     />
                     <div className="absolute bottom-4 left-0 right-0 text-center">
                       <p className="text-white/80 text-sm font-bold animate-pulse">جاري البحث عن باركود...</p>
@@ -521,41 +522,69 @@ const ProductModal = ({ product, currentUser, onClose, onSuccess, existingProduc
   );
 };
 
-const ScannerComponent = ({ onScanSuccess, onPermissionError }) => {
+// Updated Scanner Component using Html5Qrcode
+const ScannerComponent = ({ onScanSuccess, onPermissionError, elementId }) => {
   const scannerRef = useRef(null);
 
   useEffect(() => {
-    const html5QrCode = new Html5Qrcode("reader");
+    // Ensure element exists before starting
+    const element = document.getElementById(elementId);
+    if (!element) return;
+
+    const html5QrCode = new Html5Qrcode(elementId);
     scannerRef.current = html5QrCode;
 
     const config = { 
-      fps: 50, 
+      fps: 10, 
       qrbox: { width: 250, height: 250 },
       aspectRatio: 1.0,
       videoConstraints: {
-        facingMode: "environment",
-        width: { ideal: 1280 },
-        height: { ideal: 720 }
+        facingMode: { exact: "environment" } // Force back camera
       }
     };
     
-    html5QrCode.start(
-      { facingMode: "environment" }, 
-      config,
-      (decodedText) => {
-        html5QrCode.stop().then(() => {
-           onScanSuccess(decodedText);
-        }).catch(err => console.error("Stop failed", err));
-      },
-      (errorMessage) => { }
-    ).catch(err => {
-      const isPermissionError = err?.name === 'NotAllowedError' || err?.name === 'NotFoundError' || err?.toString().includes('Permission');
-      if (isPermissionError) {
-        onPermissionError();
-      } else {
-        console.error("Error starting scanner", err);
-      }
-    });
+    // Fallback config if exact environment fails
+    const fallbackConfig = {
+        facingMode: "environment"
+    };
+
+    const startScanning = async () => {
+        try {
+            await html5QrCode.start(
+                { facingMode: { exact: "environment" } }, 
+                config,
+                (decodedText) => {
+                    html5QrCode.stop().then(() => {
+                        onScanSuccess(decodedText);
+                    }).catch(err => console.error("Stop failed", err));
+                },
+                (errorMessage) => { }
+            );
+        } catch (err) {
+            console.warn("Exact environment camera failed, trying fallback...", err);
+            try {
+                await html5QrCode.start(
+                    { facingMode: "environment" }, 
+                    config,
+                    (decodedText) => {
+                        html5QrCode.stop().then(() => {
+                            onScanSuccess(decodedText);
+                        }).catch(err => console.error("Stop failed", err));
+                    },
+                    (errorMessage) => { }
+                );
+            } catch (finalErr) {
+                const isPermissionError = finalErr?.name === 'NotAllowedError' || finalErr?.name === 'NotFoundError' || finalErr?.toString().includes('Permission');
+                if (isPermissionError) {
+                    onPermissionError();
+                } else {
+                    console.error("Error starting scanner", finalErr);
+                }
+            }
+        }
+    };
+
+    startScanning();
 
     return () => {
       if (scannerRef.current && scannerRef.current.isScanning) {
@@ -563,7 +592,7 @@ const ScannerComponent = ({ onScanSuccess, onPermissionError }) => {
       }
       try { scannerRef.current.clear(); } catch(e) { }
     };
-  }, [onScanSuccess, onPermissionError]);
+  }, [onScanSuccess, onPermissionError, elementId]);
 
   return null;
 };
