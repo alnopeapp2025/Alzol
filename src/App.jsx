@@ -22,9 +22,12 @@ import { PurchasesScreen } from './screens/PurchasesScreen';
 import { FinalReportsScreen } from './screens/FinalReportsScreen';
 import { DebtsScreen } from './screens/DebtsScreen';
 import { ProModal } from './components/ProModal';
+import { AdminLoginModal } from './components/AdminLoginModal';
+import { AdminDashboardScreen } from './screens/AdminDashboardScreen';
 import { playSound } from './utils/soundManager';
 import { syncData } from './lib/dataService'; 
-import { Briefcase } from 'lucide-react';
+import { getAdminSettings } from './lib/adminSettings';
+import { Briefcase, Lock } from 'lucide-react';
 
 function App() {
   const [currentScreen, setCurrentScreen] = useState('dashboard');
@@ -32,8 +35,12 @@ function App() {
   const [isAuthOpen, setIsAuthOpen] = useState(false);
   const [authTriggerMessage, setAuthTriggerMessage] = useState('');
   const [isProOpen, setIsProOpen] = useState(false);
+  const [isAdminLoginOpen, setIsAdminLoginOpen] = useState(false);
   const [currentUser, setCurrentUser] = useState(null);
   
+  // Admin Settings State
+  const [adminSettings, setAdminSettings] = useState(getAdminSettings());
+
   useEffect(() => {
     const savedUser = localStorage.getItem('app_user');
     if (savedUser) {
@@ -42,7 +49,9 @@ function App() {
     if (navigator.onLine) {
       syncData();
     }
-  }, []);
+    // Refresh settings on load
+    setAdminSettings(getAdminSettings());
+  }, [currentScreen]); // Refresh settings when navigating
 
   const handleLogin = (user) => {
     setCurrentUser(user);
@@ -67,16 +76,51 @@ function App() {
     localStorage.setItem('app_user', JSON.stringify(updatedUser));
   };
 
+  const handleAdminSuccess = () => {
+    setIsAdminLoginOpen(false);
+    setCurrentScreen('admin-dashboard');
+  };
+
+  // Filter items based on Admin Restrictions
   const allItems = [...screen1Data, ...screen2Data].map(item => {
-    if (item.title === 'عمال ورواتب') {
-      return { ...item, icon: Briefcase };
+    let finalItem = { ...item };
+    
+    // Check if feature is restricted by admin
+    const featureKey = getFeatureKey(item.title);
+    const isRestricted = adminSettings.restrictedFeatures[featureKey];
+    const userIsPro = currentUser?.is_pro;
+
+    if (isRestricted && !userIsPro) {
+      finalItem.isLocked = true;
     }
-    return item;
+
+    if (item.title === 'عمال ورواتب') {
+      finalItem.icon = Briefcase;
+    }
+    return finalItem;
   });
 
-  const handleCardClick = (title) => {
+  // Helper to map titles to keys
+  function getFeatureKey(title) {
+    const map = {
+      'التقارير النهائية': 'final-reports',
+      'تقارير المخزن': 'inventory-reports',
+      'عمال ورواتب': 'workers',
+      'الديون': 'debts',
+      'تجار الجملة': 'wholesalers',
+      'المبيعات': 'sales'
+    };
+    return map[title];
+  }
+
+  const handleCardClick = (title, isLocked) => {
     playSound('click');
     
+    if (isLocked) {
+      setIsProOpen(true); // Open Pro Modal if locked
+      return;
+    }
+
     if (title === 'الأصناف') {
       setCurrentScreen('add-category');
     } else if (title === 'المنتجات') {
@@ -105,8 +149,6 @@ function App() {
       setCurrentScreen('debts');
     } else if (title === 'الإعدادات') {
       setCurrentScreen('settings');
-    } else {
-      console.log(`Clicked ${title}`);
     }
   };
 
@@ -114,6 +156,8 @@ function App() {
     setCurrentScreen(screen);
   };
 
+  // Screen Rendering Logic
+  if (currentScreen === 'admin-dashboard') return <AdminDashboardScreen onBack={() => setCurrentScreen('dashboard')} />;
   if (currentScreen === 'add-category') return <AddCategoryScreen onBack={() => setCurrentScreen('dashboard')} currentUser={currentUser} onOpenRegistration={handleOpenRegistration} />;
   if (currentScreen === 'add-product') return <AddProductScreen onBack={() => setCurrentScreen('dashboard')} currentUser={currentUser} onOpenRegistration={handleOpenRegistration} onOpenPro={() => setIsProOpen(true)} />;
   if (currentScreen === 'treasury') return <TreasuryScreen onBack={() => setCurrentScreen('dashboard')} />;
@@ -156,24 +200,37 @@ function App() {
         }}
       />
 
+      <AdminLoginModal
+        isOpen={isAdminLoginOpen}
+        onClose={() => setIsAdminLoginOpen(false)}
+        onSuccess={handleAdminSuccess}
+      />
+
       <TopBar 
         onOpenRegistration={() => handleOpenRegistration()} 
         onNavigate={handleNavigation}
         currentUser={currentUser}
         onLogout={handleLogout}
         onOpenPro={() => setIsProOpen(true)}
+        onOpenAdmin={() => setIsAdminLoginOpen(true)}
       />
 
       <main className="flex-1 w-full max-w-md mx-auto py-6 px-4 pb-20">
         <div className="grid grid-cols-2 gap-5 content-start">
           {allItems.map((item) => (
-            <DashboardCard 
-              key={item.id}
-              title={item.title}
-              icon={item.icon}
-              color={item.color}
-              onClick={() => handleCardClick(item.title)}
-            />
+            <div key={item.id} className="relative">
+              <DashboardCard 
+                title={item.title}
+                icon={item.icon}
+                color={item.isLocked ? '#9e9e9e' : item.color} // Grey out if locked
+                onClick={() => handleCardClick(item.title, item.isLocked)}
+              />
+              {item.isLocked && (
+                <div className="absolute -top-2 -right-2 bg-red-600 text-white p-1.5 rounded-full shadow-md z-10 pointer-events-none">
+                  <Lock size={16} />
+                </div>
+              )}
+            </div>
           ))}
         </div>
       </main>

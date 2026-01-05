@@ -1,12 +1,30 @@
-import React, { useState } from 'react';
+import React, { useState, useRef } from 'react';
 import { Menu, Edit, LogOut, LogIn } from 'lucide-react';
 import { SideMenu } from './SideMenu';
 import { playSound } from '../utils/soundManager';
 import { motion, AnimatePresence } from 'framer-motion';
 
-export const TopBar = ({ onOpenRegistration, onNavigate, currentUser, onLogout, onOpenPro }) => {
+export const TopBar = ({ onOpenRegistration, onNavigate, currentUser, onLogout, onOpenPro, onOpenAdmin }) => {
   const [isMenuOpen, setIsMenuOpen] = useState(false);
   const [isUserMenuOpen, setIsUserMenuOpen] = useState(false);
+  
+  // Long Press Logic
+  const pressTimer = useRef(null);
+
+  const handlePressStart = () => {
+    pressTimer.current = setTimeout(() => {
+      if (onOpenAdmin) {
+        playSound('click'); // Feedback
+        onOpenAdmin();
+      }
+    }, 2000); // 2 seconds long press
+  };
+
+  const handlePressEnd = () => {
+    if (pressTimer.current) {
+      clearTimeout(pressTimer.current);
+    }
+  };
 
   const handleMenuClick = () => {
     playSound('click');
@@ -46,8 +64,15 @@ export const TopBar = ({ onOpenRegistration, onNavigate, currentUser, onLogout, 
           <Menu size={28} strokeWidth={2} />
         </button>
 
-        {/* Center - Title */}
-        <h1 className="text-xl font-bold flex-1 text-center mx-2 truncate drop-shadow-md">
+        {/* Center - Title with Hidden Trigger */}
+        <h1 
+          className="text-xl font-bold flex-1 text-center mx-2 truncate drop-shadow-md select-none cursor-default active:opacity-80 transition-opacity"
+          onTouchStart={handlePressStart}
+          onTouchEnd={handlePressEnd}
+          onMouseDown={handlePressStart}
+          onMouseUp={handlePressEnd}
+          onMouseLeave={handlePressEnd}
+        >
           مخزنك
         </h1>
 
@@ -66,7 +91,7 @@ export const TopBar = ({ onOpenRegistration, onNavigate, currentUser, onLogout, 
                 />
               </button>
               
-              {/* Welcome Text - Thin Red - Positioned below icon */}
+              {/* Welcome Text */}
               <span className="absolute -bottom-5 w-max text-[10px] text-red-200 font-light tracking-wide bg-[#00695c]/90 px-2 py-0.5 rounded-md shadow-sm whitespace-nowrap z-0">
                 مرحباً: {currentUser.username}
               </span>

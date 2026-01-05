@@ -1,26 +1,10 @@
 import React, { useState, useEffect, useCallback, useRef } from 'react';
-import { ArrowRight, Search, Plus, Save, ScanBarcode, X, ArrowDown, Trash2, Settings, UserPlus } from 'lucide-react';
+import { ArrowRight, Search, Plus, Save, ScanBarcode, X, ArrowDown, Trash2, Settings, UserPlus, Camera } from 'lucide-react';
 import { fetchData, insertData, updateData, deleteData } from '../lib/dataService';
 import { Html5Qrcode } from 'html5-qrcode'; 
 import { Toast } from '../components/Toast';
 import { ConfirmDialog } from '../components/ConfirmDialog';
-
-const playBeep = () => {
-  try {
-    const audioCtx = new (window.AudioContext || window.webkitAudioContext)();
-    const oscillator = audioCtx.createOscillator();
-    const gainNode = audioCtx.createGain();
-    oscillator.connect(gainNode);
-    gainNode.connect(audioCtx.destination);
-    oscillator.type = "sine";
-    oscillator.frequency.value = 1500;
-    gainNode.gain.value = 0.1;
-    oscillator.start();
-    setTimeout(() => oscillator.stop(), 150);
-  } catch (e) {
-    console.error("Audio Context not supported", e);
-  }
-};
+import { playSound } from '../utils/soundManager';
 
 export const AddProductScreen = ({ onBack, currentUser, onOpenRegistration }) => {
   const [products, setProducts] = useState([]);
@@ -271,7 +255,7 @@ const ProductModal = ({ product, currentUser, onClose, onSuccess, existingProduc
       return;
     }
 
-    // 2. Duplicate Check (Only if name changed or new product)
+    // 2. Duplicate Check
     const isNameChanged = !product || (product && product.name !== formData.name);
     if (isNameChanged) {
       const isDuplicate = existingProducts.some(p => p.name.trim() === formData.name.trim());
@@ -323,7 +307,7 @@ const ProductModal = ({ product, currentUser, onClose, onSuccess, existingProduc
   };
 
   const handleScanSuccess = useCallback((decodedText) => {
-    playBeep();
+    playSound('barcode');
     setFormData(prev => ({ ...prev, barcode: decodedText }));
     setShowScanner(false);
     setPermissionDenied(false);
@@ -359,56 +343,13 @@ const ProductModal = ({ product, currentUser, onClose, onSuccess, existingProduc
       </div>
 
       {showScanner && (
-        <div className="absolute inset-0 z-[60] bg-black flex flex-col items-center justify-center p-4">
-           <div className="w-full max-w-sm relative">
-             <button 
-               onClick={handleCloseScanner}
-               className="absolute -top-12 right-0 z-20 bg-white/20 p-2 rounded-full text-white hover:bg-white/40"
-             >
-               <X size={24} />
-             </button>
-             
-             <div className="bg-black rounded-3xl overflow-hidden relative min-h-[350px] border-4 border-[#00695c] shadow-2xl">
-                {!permissionDenied ? (
-                  <>
-                    <div id="product-reader" className="w-full h-full"></div>
-                    <ScannerComponent 
-                      onScanSuccess={handleScanSuccess} 
-                      onPermissionError={handlePermissionError} 
-                      elementId="product-reader"
-                    />
-                    <div className="absolute bottom-4 left-0 right-0 text-center">
-                      <p className="text-white/80 text-sm font-bold animate-pulse">جاري البحث عن باركود...</p>
-                    </div>
-                  </>
-                ) : (
-                  <div className="absolute inset-0 bg-gray-900 flex flex-col items-center justify-center p-6 text-center text-white">
-                    <div className="w-20 h-20 bg-[#00695c] rounded-full flex items-center justify-center mb-6 shadow-lg animate-pulse">
-                      <Settings size={40} className="text-white" />
-                    </div>
-                    <h3 className="text-2xl font-bold mb-4">إعدادات الكاميرا</h3>
-                    <p className="text-gray-300 text-base mb-8 leading-relaxed max-w-xs">
-                      للمتابعة، يرجى السماح بالوصول للكاميرا من إعدادات المتصفح.
-                    </p>
-                    
-                    <button 
-                      onClick={() => {
-                        try {
-                          window.open("chrome://settings/content/camera");
-                        } catch (e) {
-                          console.log(e);
-                        }
-                        window.location.reload();
-                      }}
-                      className="bg-white text-[#00695c] px-8 py-4 rounded-xl font-bold text-lg hover:bg-gray-100 transition-colors w-full shadow-md"
-                    >
-                      فتح الإعدادات
-                    </button>
-                  </div>
-                )}
-             </div>
-           </div>
-        </div>
+        <ScannerOverlay 
+          onClose={handleCloseScanner}
+          onScanSuccess={handleScanSuccess}
+          onPermissionError={handlePermissionError}
+          permissionDenied={permissionDenied}
+          elementId="product-reader"
+        />
       )}
 
       <form onSubmit={handleSave} className="flex-1 flex flex-col p-4 gap-3 overflow-y-auto">
@@ -522,69 +463,100 @@ const ProductModal = ({ product, currentUser, onClose, onSuccess, existingProduc
   );
 };
 
-// Updated Scanner Component using Html5Qrcode
+// --- Reusable Scanner Overlay Component ---
+const ScannerOverlay = ({ onClose, onScanSuccess, onPermissionError, permissionDenied, elementId }) => {
+  return (
+    <div className="absolute inset-0 z-[70] bg-black flex flex-col items-center justify-center p-4">
+       <div className="w-full max-w-sm relative h-full flex flex-col justify-center">
+         <button 
+           onClick={onClose}
+           className="absolute top-4 right-4 z-20 bg-white/20 p-2 rounded-full text-white hover:bg-white/40"
+         >
+           <X size={24} />
+         </button>
+         
+         <div className="bg-black rounded-3xl overflow-hidden relative w-full aspect-[3/4] border-4 border-[#00695c] shadow-2xl">
+            {!permissionDenied ? (
+              <>
+                <div id={elementId} className="w-full h-full"></div>
+                <ScannerComponent 
+                  onScanSuccess={onScanSuccess} 
+                  onPermissionError={onPermissionError} 
+                  elementId={elementId}
+                />
+                <div className="absolute bottom-4 left-0 right-0 text-center pointer-events-none">
+                  <p className="text-white/80 text-sm font-bold animate-pulse">جاري المسح...</p>
+                </div>
+              </>
+            ) : (
+              <div className="absolute inset-0 bg-gray-900 flex flex-col items-center justify-center p-6 text-center text-white">
+                <div className="w-20 h-20 bg-[#00695c] rounded-full flex items-center justify-center mb-6 shadow-lg animate-pulse">
+                  <Settings size={40} className="text-white" />
+                </div>
+                <h3 className="text-2xl font-bold mb-4">إعدادات الكاميرا</h3>
+                <p className="text-gray-300 text-base mb-8 leading-relaxed max-w-xs">
+                  للمتابعة، يرجى السماح بالوصول للكاميرا من إعدادات المتصفح.
+                </p>
+                <button 
+                  onClick={() => window.location.reload()}
+                  className="bg-white text-[#00695c] px-8 py-4 rounded-xl font-bold text-lg hover:bg-gray-100 transition-colors w-full shadow-md"
+                >
+                  تحديث الصفحة
+                </button>
+              </div>
+            )}
+         </div>
+       </div>
+    </div>
+  );
+};
+
+// --- Improved Scanner Logic ---
 const ScannerComponent = ({ onScanSuccess, onPermissionError, elementId }) => {
   const scannerRef = useRef(null);
 
   useEffect(() => {
-    // Ensure element exists before starting
     const element = document.getElementById(elementId);
     if (!element) return;
 
-    const html5QrCode = new Html5Qrcode(elementId);
-    scannerRef.current = html5QrCode;
+    // Explicitly request permission first to handle WebViews better
+    navigator.mediaDevices.getUserMedia({ video: { facingMode: "environment" } })
+      .then(() => {
+          // Permission granted, start scanner
+          startScanner();
+      })
+      .catch((err) => {
+          console.error("Camera permission denied", err);
+          onPermissionError();
+      });
 
-    const config = { 
-      fps: 10, 
-      qrbox: { width: 250, height: 250 },
-      aspectRatio: 1.0,
-      videoConstraints: {
-        facingMode: { exact: "environment" } // Force back camera
-      }
-    };
-    
-    // Fallback config if exact environment fails
-    const fallbackConfig = {
-        facingMode: "environment"
-    };
+    const startScanner = () => {
+        const html5QrCode = new Html5Qrcode(elementId);
+        scannerRef.current = html5QrCode;
 
-    const startScanning = async () => {
-        try {
-            await html5QrCode.start(
-                { facingMode: { exact: "environment" } }, 
-                config,
-                (decodedText) => {
-                    html5QrCode.stop().then(() => {
-                        onScanSuccess(decodedText);
-                    }).catch(err => console.error("Stop failed", err));
-                },
-                (errorMessage) => { }
-            );
-        } catch (err) {
-            console.warn("Exact environment camera failed, trying fallback...", err);
-            try {
-                await html5QrCode.start(
-                    { facingMode: "environment" }, 
-                    config,
-                    (decodedText) => {
-                        html5QrCode.stop().then(() => {
-                            onScanSuccess(decodedText);
-                        }).catch(err => console.error("Stop failed", err));
-                    },
-                    (errorMessage) => { }
-                );
-            } catch (finalErr) {
-                const isPermissionError = finalErr?.name === 'NotAllowedError' || finalErr?.name === 'NotFoundError' || finalErr?.toString().includes('Permission');
-                if (isPermissionError) {
-                    onPermissionError();
-                } else {
-                    console.error("Error starting scanner", finalErr);
-                }
+        const config = { 
+          fps: 10, 
+          qrbox: { width: 250, height: 250 },
+          aspectRatio: 1.0
+        };
+        
+        // Try back camera first
+        html5QrCode.start(
+            { facingMode: "environment" }, 
+            config,
+            (decodedText) => {
+                html5QrCode.stop().then(() => {
+                    onScanSuccess(decodedText);
+                }).catch(err => console.error("Stop failed", err));
+            },
+            (errorMessage) => { 
+                // Ignore parsing errors
             }
-        }
+        ).catch(err => {
+            console.warn("Start failed", err);
+            onPermissionError();
+        });
     };
-
-    startScanning();
 
     return () => {
       if (scannerRef.current && scannerRef.current.isScanning) {

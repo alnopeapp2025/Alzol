@@ -3,24 +3,8 @@ import { ArrowRight, Plus, Minus, ShoppingCart, X, Save, Printer, Share2, Trash2
 import { fetchData, insertData, updateData } from '../lib/dataService'; 
 import { Toast } from '../components/Toast';
 import html2pdf from 'html2pdf.js'; 
-import { Html5Qrcode } from 'html5-qrcode'; // Import Html5Qrcode
-
-const playBeep = () => {
-  try {
-    const audioCtx = new (window.AudioContext || window.webkitAudioContext)();
-    const oscillator = audioCtx.createOscillator();
-    const gainNode = audioCtx.createGain();
-    oscillator.connect(gainNode);
-    gainNode.connect(audioCtx.destination);
-    oscillator.type = "square";
-    oscillator.frequency.value = 800;
-    gainNode.gain.value = 0.1;
-    oscillator.start();
-    setTimeout(() => oscillator.stop(), 100);
-  } catch (e) {
-    console.error("Audio Context not supported", e);
-  }
-};
+import { Html5Qrcode } from 'html5-qrcode'; 
+import { playSound } from '../utils/soundManager';
 
 export const SalesScreen = ({ onBack }) => {
   const [invoices, setInvoices] = useState([]);
@@ -110,20 +94,20 @@ export const SalesScreen = ({ onBack }) => {
     const existingItem = cart.find(item => item.id === product.id);
     if (existingItem) {
       if (existingItem.quantity < product.quantity) {
-        playBeep();
+        playSound('barcode'); 
         setCart(cart.map(item => item.id === product.id ? { ...item, quantity: item.quantity + 1 } : item));
       } else {
         alert('الكمية المطلوبة غير متوفرة في المخزن');
       }
     } else {
-      playBeep();
+      playSound('barcode');
       setCart([...cart, { ...product, quantity: 1 }]);
     }
     setSelectedProductId('');
   };
 
   const updateQuantity = (id, delta) => {
-    playBeep();
+    playSound('click');
     setCart(cart.map(item => {
       if (item.id === id) {
         const newQty = item.quantity + delta;
@@ -146,7 +130,7 @@ export const SalesScreen = ({ onBack }) => {
 
   const handleCheckout = async () => {
     if (cart.length === 0) return;
-    playBeep();
+    playSound('click');
     setLoading(true);
 
     const totalAmount = calculateTotal();
@@ -223,22 +207,23 @@ export const SalesScreen = ({ onBack }) => {
   };
 
   const handlePrint = async () => {
-    playBeep();
+    playSound('click');
     window.print();
   };
 
   const handleShare = async () => {
-    playBeep();
+    playSound('click');
     try {
       const element = document.getElementById('invoice-content');
       const opt = {
-        margin: 0,
+        margin: 10,
         filename: `invoice_${selectedInvoice.id}.pdf`,
         image: { type: 'jpeg', quality: 0.98 },
         html2canvas: { scale: 2, useCORS: true },
         jsPDF: { unit: 'mm', format: 'a6', orientation: 'portrait' }
       };
 
+      // Attempt to generate PDF
       const blob = await html2pdf().set(opt).from(element).output('blob');
       const file = new File([blob], opt.filename, { type: 'application/pdf' });
 
@@ -249,37 +234,40 @@ export const SalesScreen = ({ onBack }) => {
           text: `فاتورة رقم #${selectedInvoice.id}`,
         });
       } else {
-        const url = URL.createObjectURL(blob);
-        const a = document.createElement('a');
-        a.href = url;
-        a.download = opt.filename;
-        document.body.appendChild(a);
-        a.click();
-        document.body.removeChild(a);
-        URL.revokeObjectURL(url);
+        // Fallback: Try download or Print if sharing fails
+        try {
+            const url = URL.createObjectURL(blob);
+            const a = document.createElement('a');
+            a.href = url;
+            a.download = opt.filename;
+            document.body.appendChild(a);
+            a.click();
+            document.body.removeChild(a);
+            URL.revokeObjectURL(url);
+        } catch (e) {
+            // Ultimate fallback: Print
+            window.print();
+        }
       }
     } catch (error) {
       console.error('Error sharing/downloading PDF:', error);
-      alert('حدث خطأ أثناء إنشاء ملف PDF، سيتم محاولة الطباعة العادية.');
+      // If PDF generation fails completely, fallback to print
       window.print();
     }
   };
 
   const handleScanSuccess = useCallback((decodedText) => {
-    playBeep();
+    playSound('barcode');
     setShowScanner(false);
     setPermissionDenied(false);
     
-    // Find product by barcode
     const product = products.find(p => p.barcode === decodedText);
     
     if (product) {
       if (showModal) {
-         // If modal is open, add to cart directly
          handleAddProductToCart(product.id);
          setToast({ show: true, message: `تم إضافة ${product.name}` });
       } else {
-         // If modal is closed, open it and add to cart
          setShowModal(true);
          setCart(prev => {
             const existing = prev.find(i => i.id === product.id);
@@ -341,50 +329,15 @@ export const SalesScreen = ({ onBack }) => {
         </div>
       </div>
 
-      {/* Scanner Overlay - USING HTML5-QRCODE */}
+      {/* Scanner Overlay */}
       {showScanner && (
-        <div className="absolute inset-0 z-[70] bg-black flex flex-col items-center justify-center p-4 print:hidden">
-           <div className="w-full max-w-sm relative h-full flex flex-col justify-center">
-             <button 
-               onClick={handleCloseScanner}
-               className="absolute top-4 right-4 z-20 bg-white/20 p-2 rounded-full text-white hover:bg-white/40"
-             >
-               <X size={24} />
-             </button>
-             
-             <div className="bg-black rounded-3xl overflow-hidden relative w-full aspect-[3/4] border-4 border-[#00695c] shadow-2xl">
-                {!permissionDenied ? (
-                  <>
-                    <div id="sales-reader" className="w-full h-full"></div>
-                    <ScannerComponent 
-                      onScanSuccess={handleScanSuccess} 
-                      onPermissionError={handlePermissionError} 
-                      elementId="sales-reader"
-                    />
-                    <div className="absolute bottom-4 left-0 right-0 text-center pointer-events-none">
-                      <p className="text-white/80 text-sm font-bold animate-pulse">جاري المسح...</p>
-                    </div>
-                  </>
-                ) : (
-                  <div className="absolute inset-0 bg-gray-900 flex flex-col items-center justify-center p-6 text-center text-white">
-                    <div className="w-20 h-20 bg-[#00695c] rounded-full flex items-center justify-center mb-6 shadow-lg animate-pulse">
-                      <Settings size={40} className="text-white" />
-                    </div>
-                    <h3 className="text-2xl font-bold mb-4">إعدادات الكاميرا</h3>
-                    <p className="text-gray-300 text-base mb-8 leading-relaxed max-w-xs">
-                      للمتابعة، يرجى السماح بالوصول للكاميرا من إعدادات المتصفح.
-                    </p>
-                    <button 
-                      onClick={() => window.location.reload()}
-                      className="bg-white text-[#00695c] px-8 py-4 rounded-xl font-bold text-lg hover:bg-gray-100 transition-colors w-full shadow-md"
-                    >
-                      تحديث الصفحة
-                    </button>
-                  </div>
-                )}
-             </div>
-           </div>
-        </div>
+        <ScannerOverlay 
+          onClose={handleCloseScanner}
+          onScanSuccess={handleScanSuccess}
+          onPermissionError={handlePermissionError}
+          permissionDenied={permissionDenied}
+          elementId="sales-reader"
+        />
       )}
 
       {/* Invoice List */}
@@ -426,13 +379,12 @@ export const SalesScreen = ({ onBack }) => {
         )}
       </div>
 
-      {/* Add Sales Modal - REDESIGNED LAYOUT */}
+      {/* Add Sales Modal */}
       {showModal && (
-        <div className="fixed top-[64px] bottom-0 left-0 right-0 z-50 flex justify-center items-end sm:items-center print:hidden">
+        <div className="fixed inset-0 z-50 flex items-end sm:items-center justify-center p-4 print:hidden">
           <div className="absolute inset-0 bg-black/50 backdrop-blur-sm" onClick={() => setShowModal(false)} />
           
-          {/* Main Container - Full height below header */}
-          <div className="bg-white w-full max-w-md h-full rounded-t-3xl shadow-2xl overflow-hidden relative z-10 animate-in slide-in-from-bottom duration-300 flex flex-col">
+          <div className="bg-white w-full max-w-sm rounded-3xl shadow-2xl overflow-hidden relative z-10 animate-in slide-in-from-bottom duration-300 flex flex-col max-h-[85vh]">
             
             {/* Modal Header */}
             <div className="bg-[#00695c] text-white p-4 flex justify-between items-center shrink-0">
@@ -470,12 +422,16 @@ export const SalesScreen = ({ onBack }) => {
                 </div>
               </div>
 
-              {/* Cart Items - Smaller Font */}
-              <div className="flex flex-col gap-2">
+              {/* Cart Items */}
+              <div className="flex flex-col gap-2 min-h-[150px] flex-1">
+                {cart.length === 0 && (
+                  <div className="flex items-center justify-center h-full text-gray-400 text-sm font-medium border-2 border-dashed border-gray-200 rounded-xl">
+                    لم يتم اختيار منتجات بعد
+                  </div>
+                )}
                 {cart.map((item) => (
                   <div key={item.id} className="bg-white border border-gray-200 rounded-xl p-2 flex items-center justify-between shadow-sm">
                     <div className="flex-1">
-                      {/* Reduced Font Size to text-xs */}
                       <h4 className="font-bold text-gray-800 text-xs">{item.name}</h4>
                       <div className="text-[10px] text-gray-500 flex gap-2 mt-1">
                         <span>سعر: {item.selling_price}</span>
@@ -494,8 +450,8 @@ export const SalesScreen = ({ onBack }) => {
               </div>
             </div>
 
-            {/* Modal Footer - Fixed at bottom of modal */}
-            <div className="bg-gray-50 p-4 border-t border-gray-200 shrink-0 pb-6">
+            {/* Modal Footer */}
+            <div className="bg-gray-50 p-4 border-t border-gray-200 shrink-0">
               <div className="flex justify-between items-center mb-4">
                 <span className="font-bold text-gray-600">المبلغ المطلوب:</span>
                 <span className="font-black text-2xl text-[#00695c]">{calculateTotal().toLocaleString()} <span className="text-sm">ج.س</span></span>
@@ -515,36 +471,46 @@ export const SalesScreen = ({ onBack }) => {
         </div>
       )}
 
-      {/* Invoice Modal */}
+      {/* Invoice Modal - Optimized for Print */}
       {showInvoice && selectedInvoice && (
-        <div className="fixed inset-0 z-[60] flex items-center justify-center p-4 print:p-0 print:static">
+        <div className="fixed inset-0 z-[60] flex items-center justify-center p-4 print:p-0 print:static print:block">
           <div className="absolute inset-0 bg-black/60 backdrop-blur-sm print:hidden" onClick={() => setShowInvoice(false)} />
-          <div className="bg-white w-full max-w-sm rounded-none sm:rounded-lg shadow-2xl overflow-hidden relative z-10 animate-in zoom-in duration-200 print:w-full print:h-full print:fixed print:inset-0 print:shadow-none print:rounded-none">
-            <div id="invoice-content" className="p-8 text-center bg-white">
-              <div className="w-16 h-16 bg-[#00695c] rounded-full flex items-center justify-center mx-auto mb-4 text-white print:text-[#00695c] print:border-2 print:border-[#00695c]"><ShoppingCart size={32} /></div>
-              <h2 className="text-2xl font-bold text-gray-800 mb-1">فاتورة مبيعات</h2>
-              <p className="text-gray-500 text-sm mb-6">رقم الفاتورة: #{selectedInvoice.id}</p>
-              <div className="border-t border-b border-gray-200 py-4 mb-4">
-                <div className="flex justify-between text-sm text-gray-500 mb-2"><span>التاريخ:</span><span>{selectedInvoice.date}</span></div>
-                <div className="flex justify-between text-sm text-gray-500"><span>طريقة الدفع:</span><span>{selectedInvoice.method}</span></div>
+          <div className="bg-white w-full max-w-sm rounded-none sm:rounded-lg shadow-2xl overflow-hidden relative z-10 animate-in zoom-in duration-200 print:w-full print:h-auto print:shadow-none print:rounded-none print:static print:animate-none">
+            
+            {/* Printable Content */}
+            <div id="invoice-content" className="p-8 text-center bg-white print:p-4">
+              <div className="w-16 h-16 bg-[#00695c] rounded-full flex items-center justify-center mx-auto mb-4 text-white print:text-black print:bg-transparent print:border-2 print:border-black print:w-12 print:h-12"><ShoppingCart size={32} className="print:w-6 print:h-6" /></div>
+              <h2 className="text-2xl font-bold text-gray-800 mb-1 print:text-black print:text-xl">فاتورة مبيعات</h2>
+              <p className="text-gray-500 text-sm mb-6 print:text-black">رقم الفاتورة: #{selectedInvoice.id}</p>
+              
+              <div className="border-t border-b border-gray-200 py-4 mb-4 print:border-black">
+                <div className="flex justify-between text-sm text-gray-500 mb-2 print:text-black"><span>التاريخ:</span><span>{selectedInvoice.date}</span></div>
+                <div className="flex justify-between text-sm text-gray-500 print:text-black"><span>طريقة الدفع:</span><span>{selectedInvoice.method}</span></div>
               </div>
+              
               <div className="flex flex-col gap-2 mb-6">
                 {selectedInvoice.items.map((item, idx) => (
-                  <div key={idx} className="flex justify-between items-center text-sm">
-                    <div className="text-right"><span className="font-bold text-gray-800 block">{item.name}</span><span className="text-gray-400 text-xs">x{item.quantity}</span></div>
-                    <span className="font-bold text-gray-800">{(item.selling_price * item.quantity).toLocaleString()}</span>
+                  <div key={idx} className="flex justify-between items-center text-sm print:text-black">
+                    <div className="text-right"><span className="font-bold text-gray-800 block print:text-black">{item.name}</span><span className="text-gray-400 text-xs print:text-black">x{item.quantity}</span></div>
+                    <span className="font-bold text-gray-800 print:text-black">{(item.selling_price * item.quantity).toLocaleString()}</span>
                   </div>
                 ))}
               </div>
-              <div className="border-t-2 border-dashed border-gray-300 pt-4 mb-8">
-                <div className="flex justify-between items-center"><span className="font-bold text-xl text-gray-800">المجموع الكلي</span><span className="font-black text-2xl text-[#00695c]">{selectedInvoice.total.toLocaleString()}</span></div>
+              
+              <div className="border-t-2 border-dashed border-gray-300 pt-4 mb-8 print:border-black">
+                <div className="flex justify-between items-center"><span className="font-bold text-xl text-gray-800 print:text-black">المجموع الكلي</span><span className="font-black text-2xl text-[#00695c] print:text-black">{selectedInvoice.total.toLocaleString()}</span></div>
+              </div>
+
+              <div className="hidden print:block text-center text-xs mt-4">
+                شكراً لتعاملكم معنا
               </div>
             </div>
             
-            <div className="p-4 bg-gray-50 border-t border-gray-100 print:hidden">
+            {/* Actions (Hidden in Print) */}
+            <div className="p-4 bg-gray-50 border-t border-gray-100 print:hidden no-print">
                <div className="flex gap-3">
                 <button onClick={handlePrint} className="flex-1 bg-gray-800 text-white h-12 rounded-xl font-bold flex items-center justify-center gap-2 hover:bg-gray-900"><Printer size={20} /> طباعة</button>
-                <button onClick={handleShare} className="flex-1 bg-[#00695c] text-white h-12 rounded-xl font-bold flex items-center justify-center gap-2 hover:bg-[#005c4b]"><Share2 size={20} /> إرسال</button>
+                <button onClick={handleShare} className="flex-1 bg-[#00695c] text-white h-12 rounded-xl font-bold flex items-center justify-center gap-2 hover:bg-[#005c4b]"><Share2 size={20} /> مشاركة</button>
               </div>
               <button onClick={() => setShowInvoice(false)} className="mt-4 w-full text-gray-400 hover:text-gray-600 text-sm font-medium">إغلاق</button>
             </div>
@@ -555,69 +521,95 @@ export const SalesScreen = ({ onBack }) => {
   );
 };
 
-// Reusable Scanner Component using Html5Qrcode (Same as AddProductScreen)
+// --- Reusable Scanner Overlay Component ---
+const ScannerOverlay = ({ onClose, onScanSuccess, onPermissionError, permissionDenied, elementId }) => {
+  return (
+    <div className="absolute inset-0 z-[70] bg-black flex flex-col items-center justify-center p-4">
+       <div className="w-full max-w-sm relative h-full flex flex-col justify-center">
+         <button 
+           onClick={onClose}
+           className="absolute top-4 right-4 z-20 bg-white/20 p-2 rounded-full text-white hover:bg-white/40"
+         >
+           <X size={24} />
+         </button>
+         
+         <div className="bg-black rounded-3xl overflow-hidden relative w-full aspect-[3/4] border-4 border-[#00695c] shadow-2xl">
+            {!permissionDenied ? (
+              <>
+                <div id={elementId} className="w-full h-full"></div>
+                <ScannerComponent 
+                  onScanSuccess={onScanSuccess} 
+                  onPermissionError={onPermissionError} 
+                  elementId={elementId}
+                />
+                <div className="absolute bottom-4 left-0 right-0 text-center pointer-events-none">
+                  <p className="text-white/80 text-sm font-bold animate-pulse">جاري المسح...</p>
+                </div>
+              </>
+            ) : (
+              <div className="absolute inset-0 bg-gray-900 flex flex-col items-center justify-center p-6 text-center text-white">
+                <div className="w-20 h-20 bg-[#00695c] rounded-full flex items-center justify-center mb-6 shadow-lg animate-pulse">
+                  <Settings size={40} className="text-white" />
+                </div>
+                <h3 className="text-2xl font-bold mb-4">إعدادات الكاميرا</h3>
+                <p className="text-gray-300 text-base mb-8 leading-relaxed max-w-xs">
+                  للمتابعة، يرجى السماح بالوصول للكاميرا من إعدادات المتصفح.
+                </p>
+                <button 
+                  onClick={() => window.location.reload()}
+                  className="bg-white text-[#00695c] px-8 py-4 rounded-xl font-bold text-lg hover:bg-gray-100 transition-colors w-full shadow-md"
+                >
+                  تحديث الصفحة
+                </button>
+              </div>
+            )}
+         </div>
+       </div>
+    </div>
+  );
+};
+
+// --- Improved Scanner Logic ---
 const ScannerComponent = ({ onScanSuccess, onPermissionError, elementId }) => {
   const scannerRef = useRef(null);
 
   useEffect(() => {
-    // Ensure element exists before starting
     const element = document.getElementById(elementId);
     if (!element) return;
 
-    const html5QrCode = new Html5Qrcode(elementId);
-    scannerRef.current = html5QrCode;
+    navigator.mediaDevices.getUserMedia({ video: { facingMode: "environment" } })
+      .then(() => {
+          startScanner();
+      })
+      .catch((err) => {
+          console.error("Camera permission denied", err);
+          onPermissionError();
+      });
 
-    const config = { 
-      fps: 10, 
-      qrbox: { width: 250, height: 250 },
-      aspectRatio: 1.0,
-      videoConstraints: {
-        facingMode: { exact: "environment" } // Force back camera
-      }
-    };
-    
-    // Fallback config if exact environment fails
-    const fallbackConfig = {
-        facingMode: "environment"
-    };
+    const startScanner = () => {
+        const html5QrCode = new Html5Qrcode(elementId);
+        scannerRef.current = html5QrCode;
 
-    const startScanning = async () => {
-        try {
-            await html5QrCode.start(
-                { facingMode: { exact: "environment" } }, 
-                config,
-                (decodedText) => {
-                    html5QrCode.stop().then(() => {
-                        onScanSuccess(decodedText);
-                    }).catch(err => console.error("Stop failed", err));
-                },
-                (errorMessage) => { }
-            );
-        } catch (err) {
-            console.warn("Exact environment camera failed, trying fallback...", err);
-            try {
-                await html5QrCode.start(
-                    { facingMode: "environment" }, 
-                    config,
-                    (decodedText) => {
-                        html5QrCode.stop().then(() => {
-                            onScanSuccess(decodedText);
-                        }).catch(err => console.error("Stop failed", err));
-                    },
-                    (errorMessage) => { }
-                );
-            } catch (finalErr) {
-                const isPermissionError = finalErr?.name === 'NotAllowedError' || finalErr?.name === 'NotFoundError' || finalErr?.toString().includes('Permission');
-                if (isPermissionError) {
-                    onPermissionError();
-                } else {
-                    console.error("Error starting scanner", finalErr);
-                }
-            }
-        }
+        const config = { 
+          fps: 10, 
+          qrbox: { width: 250, height: 250 },
+          aspectRatio: 1.0
+        };
+        
+        html5QrCode.start(
+            { facingMode: "environment" }, 
+            config,
+            (decodedText) => {
+                html5QrCode.stop().then(() => {
+                    onScanSuccess(decodedText);
+                }).catch(err => console.error("Stop failed", err));
+            },
+            (errorMessage) => { }
+        ).catch(err => {
+            console.warn("Start failed", err);
+            onPermissionError();
+        });
     };
-
-    startScanning();
 
     return () => {
       if (scannerRef.current && scannerRef.current.isScanning) {

@@ -23,3 +23,46 @@ input[type="number"] {
   direction: ltr;
   display: inline-block;
 }
+
+/* --- Print Styles --- */
+@media print {
+  /* Hide everything by default */
+  body * {
+    visibility: hidden;
+  }
+
+  /* Show only the invoice content */
+  #invoice-content, #invoice-content * {
+    visibility: visible;
+  }
+
+  /* Position the invoice at the top-left */
+  #invoice-content {
+    position: absolute;
+    left: 0;
+    top: 0;
+    width: 100%;
+    margin: 0;
+    padding: 0;
+    background: white;
+    box-shadow: none !important;
+    border: none !important;
+    border-radius: 0 !important;
+  }
+
+  /* Hide buttons inside the invoice during print */
+  .no-print {
+    display: none !important;
+  }
+
+  /* Ensure text colors are black for better printing */
+  #invoice-content * {
+    color: black !important;
+  }
+  
+  /* Adjust layout for thermal printers if needed */
+  @page {
+    margin: 0;
+    size: auto;
+  }
+}

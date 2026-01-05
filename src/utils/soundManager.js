@@ -10,18 +10,23 @@ export const playSound = (type) => {
   try {
     if (type === 'click') {
       // --- CUSTOM SOUND (sound2.mp3) ---
-      // التأكد من استخدام الملف الجديد في مجلد public
-      // تم رفع مستوى الصوت ليكون عالياً وواضحاً
-      const audio = new Audio('/sound2.mp3');
+      // استخدام BASE_URL لضمان صحة المسار سواء على السيرفر المحلي أو GitHub Pages
+      const baseUrl = import.meta.env.BASE_URL.endsWith('/') ? import.meta.env.BASE_URL : import.meta.env.BASE_URL + '/';
+      const audioPath = `${baseUrl}sound2.mp3`;
       
+      const audio = new Audio(audioPath);
       audio.volume = 1.0; 
       
       // إعادة تعيين الوقت لضمان التشغيل السريع عند النقر المتتابع
       audio.currentTime = 0;
       
-      audio.play().catch(e => {
-        console.warn("Click sound play failed:", e);
-      });
+      // التعامل مع سياسات المتصفح التي قد تمنع التشغيل التلقائي
+      const playPromise = audio.play();
+      if (playPromise !== undefined) {
+        playPromise.catch(error => {
+          console.warn("Click sound play failed (browser policy):", error);
+        });
+      }
     } else if (type === 'barcode') {
       const audioCtx = new (window.AudioContext || window.webkitAudioContext)();
       const oscillator = audioCtx.createOscillator();

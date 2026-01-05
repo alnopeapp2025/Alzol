@@ -57,6 +57,7 @@ export const TreasuryScreen = ({ onBack }) => {
         });
       });
 
+      // Calculate Total: Sum of ALL records in DB for this user (Banks + Cash)
       const total = userBalances
         .reduce((sum, item) => sum + Number(item.amount), 0);
       
@@ -176,7 +177,7 @@ export const TreasuryScreen = ({ onBack }) => {
           <div className="absolute top-0 right-0 w-20 h-20 bg-[#00695c]/10 rounded-bl-full -mr-4 -mt-4 transition-transform group-hover:scale-110"></div>
           <h2 className="text-gray-500 font-bold mb-2 flex items-center justify-center gap-2">
             <TrendingUp size={20} className="text-[#00695c]" />
-            مجموع الأرصدة
+            مجموع الأرصدة (بنوك + كاش)
           </h2>
           <div className="text-4xl font-black text-[#00695c] tracking-tight">
             {totalTreasury.toLocaleString()} <span className="text-lg text-gray-400 font-medium">ج.س</span>
