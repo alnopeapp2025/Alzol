@@ -1,5 +1,5 @@
 import React, { useState, useEffect } from 'react';
-import { ArrowRight, TrendingUp, RefreshCw, Trash2, ArrowLeftRight, X, Save, AlertCircle } from 'lucide-react';
+import { ArrowRight, TrendingUp, RefreshCw, Trash2, ArrowLeftRight, X, AlertCircle } from 'lucide-react';
 import { fetchData, updateData, insertData } from '../lib/dataService'; 
 import { Toast } from '../components/Toast';
 import { ConfirmDialog } from '../components/ConfirmDialog';
@@ -50,8 +50,6 @@ export const TreasuryScreen = ({ onBack }) => {
 
       setTreasuryData(prevData => {
         return prevData.map(uiBank => {
-          // Match by name or map old names to new names if necessary for backward compatibility
-          // For now, we assume names in DB match or we rely on UI names for display
           const dbBank = userBalances.find(d => d.name === uiBank.name);
           return dbBank 
             ? { ...uiBank, amount: dbBank.amount, dbId: dbBank.id } 
@@ -89,7 +87,6 @@ export const TreasuryScreen = ({ onBack }) => {
       setTotalTreasury(0);
       
       setToast({ show: true, message: isOfflineOp ? 'تم التصفير (وضع عدم الاتصال)' : 'تم تصفير الخزينة بنجاح' });
-      // إعادة تحميل البيانات للتأكيد (اختياري هنا لأننا حدثنا الواجهة يدوياً)
       loadData(currentUser?.id);
     } else {
       alert('حدث خطأ أثناء التصفير');
@@ -128,12 +125,10 @@ export const TreasuryScreen = ({ onBack }) => {
     if (!err1) {
         // 2. Add to Destination
         if (destBank.dbId) {
-            // If destination exists, update it
             await updateData('treasury_balances', destBank.dbId, {
                 amount: Number(destBank.amount) + amount
             });
         } else {
-            // If destination does NOT exist in DB for this user, INSERT it
             await insertData('treasury_balances', {
                 name: destBank.name,
                 amount: amount,
@@ -181,7 +176,7 @@ export const TreasuryScreen = ({ onBack }) => {
           <div className="absolute top-0 right-0 w-20 h-20 bg-[#00695c]/10 rounded-bl-full -mr-4 -mt-4 transition-transform group-hover:scale-110"></div>
           <h2 className="text-gray-500 font-bold mb-2 flex items-center justify-center gap-2">
             <TrendingUp size={20} className="text-[#00695c]" />
-            إجمالي الخزينة (أرصدة البنوك)
+            مجموع الأرصدة
           </h2>
           <div className="text-4xl font-black text-[#00695c] tracking-tight">
             {totalTreasury.toLocaleString()} <span className="text-lg text-gray-400 font-medium">ج.س</span>

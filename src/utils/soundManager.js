@@ -11,9 +11,14 @@ export const playSound = (type) => {
     if (type === 'click') {
       // --- CUSTOM SOUND (sound2.mp3) ---
       // التأكد من استخدام الملف الجديد في مجلد public
+      // تم رفع مستوى الصوت ليكون عالياً وواضحاً
       const audio = new Audio('/sound2.mp3');
       
-      audio.volume = 0.6;
+      audio.volume = 1.0; 
+      
+      // إعادة تعيين الوقت لضمان التشغيل السريع عند النقر المتتابع
+      audio.currentTime = 0;
+      
       audio.play().catch(e => {
         console.warn("Click sound play failed:", e);
       });
