@@ -58,7 +58,6 @@ export const SalesScreen = ({ onBack }) => {
   const fetchInvoices = async () => {
     const data = await fetchData('sales');
     if (data) {
-      // PRIVACY FILTER
       const userSales = currentUser 
         ? data.filter(s => s.user_id == currentUser.id)
         : data.filter(s => !s.user_id);
@@ -154,7 +153,6 @@ export const SalesScreen = ({ onBack }) => {
     let isOfflineTransaction = false;
     const userId = currentUser ? currentUser.id : null;
 
-    // 1. Save Sales Records
     for (const item of cart) {
       const { isOffline: saleOffline } = await insertData('sales', {
         product_name: item.name,
@@ -164,7 +162,6 @@ export const SalesScreen = ({ onBack }) => {
         user_id: userId
       });
 
-      // 2. Update Product Quantity
       const productRef = products.find(p => p.id === item.id);
       const { isOffline: prodOffline } = await updateData('products', item.id, { 
         quantity: productRef.quantity - item.quantity 
@@ -173,7 +170,6 @@ export const SalesScreen = ({ onBack }) => {
       if (saleOffline || prodOffline) isOfflineTransaction = true;
     }
 
-    // 3. Update Treasury (PRIVATE & REAL-TIME)
     const treasuryData = await fetchData('treasury_balances');
     
     const balanceItem = treasuryData.find(d => 

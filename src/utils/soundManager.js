@@ -10,16 +10,14 @@ export const playSound = (type) => {
   try {
     if (type === 'click') {
       // --- CUSTOM SOUND (sound2.mp3) ---
-      // تم ربط الملف الجديد الموجود في مجلد public
+      // التأكد من استخدام الملف الجديد في مجلد public
       const audio = new Audio('/sound2.mp3');
       
       audio.volume = 0.6;
       audio.play().catch(e => {
         console.warn("Click sound play failed:", e);
-        console.warn("Make sure sound2.mp3 is in the public folder");
       });
     } else if (type === 'barcode') {
-      // الإبقاء على صوت الباركود الإلكتروني (Beep) كما هو
       const audioCtx = new (window.AudioContext || window.webkitAudioContext)();
       const oscillator = audioCtx.createOscillator();
       const gainNode = audioCtx.createGain();

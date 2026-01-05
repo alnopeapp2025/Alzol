@@ -1,4 +1,4 @@
-import React, { useState, useEffect } from 'react';
+import React, { useState, useEffect, useRef } from 'react';
 import { ArrowRight, Trash2, Edit, Plus } from 'lucide-react';
 import { fetchData, insertData, deleteData, updateData } from '../lib/dataService'; 
 import { Toast } from '../components/Toast';
@@ -14,6 +14,8 @@ export const AddCategoryScreen = ({ onBack, currentUser }) => {
   const [deleteDialog, setDeleteDialog] = useState({ show: false, id: null });
   const [editDialog, setEditDialog] = useState({ show: false, id: null, name: '' });
 
+  const inputRef = useRef(null);
+
   useEffect(() => {
     loadCategories();
   }, [currentUser]);
@@ -21,7 +23,6 @@ export const AddCategoryScreen = ({ onBack, currentUser }) => {
   const loadCategories = async () => {
     const data = await fetchData('categories');
     if (data) {
-      // PRIVACY FILTER
       const userCats = currentUser 
         ? data.filter(c => c.user_id == currentUser.id)
         : data.filter(c => !c.user_id);
@@ -35,7 +36,21 @@ export const AddCategoryScreen = ({ onBack, currentUser }) => {
 
   const handleAdd = async (e) => {
     e.preventDefault();
-    if (!inputValue.trim()) return;
+    
+    // 1. Validation & Focus
+    if (!inputValue.trim()) {
+      alert('يرجى إكمال جميع الحقول المطلوبة');
+      if (inputRef.current) inputRef.current.focus();
+      return;
+    }
+
+    // 2. Duplicate Check
+    const isDuplicate = categories.some(c => c.name.trim() === inputValue.trim());
+    if (isDuplicate) {
+      alert('عفواً، هذا السجل موجود مسبقاً');
+      if (inputRef.current) inputRef.current.focus();
+      return;
+    }
 
     setLoading(true);
     const userId = currentUser ? currentUser.id : null;
@@ -51,6 +66,7 @@ export const AddCategoryScreen = ({ onBack, currentUser }) => {
          loadCategories();
       }
       setInputValue('');
+      if (inputRef.current) inputRef.current.focus();
     }
     setLoading(false);
   };
@@ -108,6 +124,7 @@ export const AddCategoryScreen = ({ onBack, currentUser }) => {
           <div>
             <label className="block text-[#00695c] text-xs font-bold mb-1 text-right px-1">اسم الصنف</label>
             <input
+              ref={inputRef}
               type="text"
               value={inputValue}
               onChange={(e) => setInputValue(e.target.value)}

@@ -1,4 +1,4 @@
-import React, { useState, useEffect } from 'react';
+import React, { useState, useEffect, useRef } from 'react';
 import { ArrowRight, Trash2, Plus, Users } from 'lucide-react';
 import { fetchData, insertData, deleteData } from '../lib/dataService'; 
 import { Toast } from '../components/Toast';
@@ -11,6 +11,8 @@ export const CustomersScreen = ({ onBack, currentUser }) => {
   
   const [toast, setToast] = useState({ show: false, message: '' });
   const [deleteDialog, setDeleteDialog] = useState({ show: false, id: null });
+
+  const inputRef = useRef(null);
 
   useEffect(() => {
     loadCustomers();
@@ -32,7 +34,21 @@ export const CustomersScreen = ({ onBack, currentUser }) => {
 
   const handleAdd = async (e) => {
     e.preventDefault();
-    if (!inputValue.trim()) return;
+    
+    // 1. Validation & Focus
+    if (!inputValue.trim()) {
+      alert('يرجى إكمال جميع الحقول المطلوبة');
+      if (inputRef.current) inputRef.current.focus();
+      return;
+    }
+
+    // 2. Duplicate Check
+    const isDuplicate = customers.some(c => c.name.trim() === inputValue.trim());
+    if (isDuplicate) {
+      alert('عفواً، هذا السجل موجود مسبقاً');
+      if (inputRef.current) inputRef.current.focus();
+      return;
+    }
 
     setLoading(true);
     const userId = currentUser ? currentUser.id : null;
@@ -46,6 +62,7 @@ export const CustomersScreen = ({ onBack, currentUser }) => {
       showToast(isOffline ? 'تم الحفظ (وضع عدم الاتصال)' : 'تمت إضافة العميل بنجاح');
       if (data) loadCustomers();
       setInputValue('');
+      if (inputRef.current) inputRef.current.focus();
     }
     setLoading(false);
   };
@@ -83,6 +100,7 @@ export const CustomersScreen = ({ onBack, currentUser }) => {
           <div>
             <label className="block text-[#00695c] text-xs font-bold mb-1 text-right px-1">اسم العميل</label>
             <input
+              ref={inputRef}
               type="text"
               value={inputValue}
               onChange={(e) => setInputValue(e.target.value)}

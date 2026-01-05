@@ -1,4 +1,4 @@
-import React, { useState, useEffect } from 'react';
+import React, { useState, useEffect, useRef } from 'react';
 import { ArrowRight, Plus, Wallet, AlertCircle, Calendar, Save, X, Trash2, Edit } from 'lucide-react';
 import { fetchData, insertData, updateData, deleteData } from '../lib/dataService'; 
 import { Toast } from '../components/Toast';
@@ -25,6 +25,10 @@ export const ExpensesScreen = ({ onBack }) => {
     payment_method: 'بنكك - بنك الخرطوم'
   });
 
+  // Refs
+  const nameRef = useRef(null);
+  const amountRef = useRef(null);
+
   useEffect(() => {
     const savedUser = localStorage.getItem('app_user');
     if (savedUser) {
@@ -44,7 +48,6 @@ export const ExpensesScreen = ({ onBack }) => {
   const fetchExpenses = async () => {
     const data = await fetchData('expenses');
     if (data) {
-      // PRIVACY FILTER
       const userExpenses = currentUser 
         ? data.filter(e => e.user_id == currentUser.id)
         : data.filter(e => !e.user_id);
@@ -55,7 +58,6 @@ export const ExpensesScreen = ({ onBack }) => {
   const fetchBalances = async () => {
     const data = await fetchData('treasury_balances');
     if (data) {
-      // PRIVACY FILTER
       const userBalances = currentUser 
         ? data.filter(b => b.user_id == currentUser.id)
         : data.filter(b => !b.user_id);
@@ -77,7 +79,31 @@ export const ExpensesScreen = ({ onBack }) => {
 
   const handleSave = async (e) => {
     e.preventDefault();
-    if (!formData.name || !formData.amount) return;
+    
+    // 1. Validation & Focus
+    if (!formData.name) {
+      alert('يرجى إكمال جميع الحقول المطلوبة');
+      if (nameRef.current) nameRef.current.focus();
+      return;
+    }
+    if (!formData.amount) {
+      alert('يرجى إكمال جميع الحقول المطلوبة');
+      if (amountRef.current) amountRef.current.focus();
+      return;
+    }
+
+    // 2. Duplicate Check (Only if name changed or new expense)
+    // For expenses, we check if an expense with the exact same name exists in the list
+    // This is to prevent accidental double entry or if the user wants unique expense names
+    const isNameChanged = !isEditing || (selectedExpense && selectedExpense.name !== formData.name);
+    if (isNameChanged) {
+      const isDuplicate = expenses.some(e => e.name.trim() === formData.name.trim());
+      if (isDuplicate) {
+        alert('عفواً، هذا السجل موجود مسبقاً');
+        if (nameRef.current) nameRef.current.focus();
+        return;
+      }
+    }
 
     const amount = parseFloat(formData.amount);
     const userId = currentUser ? currentUser.id : null;
@@ -105,7 +131,6 @@ export const ExpensesScreen = ({ onBack }) => {
       if (!error) {
         if (isOffline) isOfflineOp = true;
         
-        // Update Treasury Programmatically (Decrease) - PRIVATE
         const treasuryData = await fetchData('treasury_balances');
         const balanceItem = treasuryData.find(d => 
           d.name === selectedExpense.payment_method && (userId ? d.user_id == userId : !d.user_id)
@@ -127,13 +152,12 @@ export const ExpensesScreen = ({ onBack }) => {
         amount: amount,
         payment_method: formData.payment_method,
         expense_date: getFormattedDate(),
-        user_id: userId // Link to User
+        user_id: userId
       });
 
       if (!error) {
         if (isOffline) isOfflineOp = true;
 
-        // Update Treasury Programmatically (Decrease) - PRIVATE
         const treasuryData = await fetchData('treasury_balances');
         const balanceItem = treasuryData.find(d => 
           d.name === formData.payment_method && (userId ? d.user_id == userId : !d.user_id)
@@ -144,7 +168,6 @@ export const ExpensesScreen = ({ onBack }) => {
              amount: Number(balanceItem.amount) - amount
            });
         } else {
-           // Should not happen if validation passed, but just in case create negative balance
            await insertData('treasury_balances', {
              name: formData.payment_method,
              amount: -amount,
@@ -164,11 +187,9 @@ export const ExpensesScreen = ({ onBack }) => {
     setSelectedExpense(null);
     setFormData({ name: '', amount: '', payment_method: 'بنكك - بنك الخرطوم' });
     
-    // Refresh Data
     loadData();
   };
 
-  // ... (Rest of UI remains identical) ...
   const handleExpenseClick = (item) => {
     setSelectedExpense(item);
     setShowActionModal(true);
@@ -338,6 +359,7 @@ export const ExpensesScreen = ({ onBack }) => {
               <div>
                 <label className="block text-[#00695c] text-xs font-bold mb-1 text-right px-1">اسم المصروف</label>
                 <input
+                  ref={nameRef}
                   type="text"
                   value={formData.name}
                   onChange={(e) => setFormData({ ...formData, name: e.target.value })}
@@ -350,6 +372,7 @@ export const ExpensesScreen = ({ onBack }) => {
               <div>
                 <label className="block text-[#00695c] text-xs font-bold mb-1 text-right px-1">المبلغ (جنية سوداني)</label>
                 <input
+                  ref={amountRef}
                   type="number"
                   value={formData.amount}
                   onChange={(e) => setFormData({ ...formData, amount: e.target.value })}

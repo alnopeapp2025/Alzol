@@ -39,8 +39,6 @@ export const AddProductScreen = ({ onBack, currentUser, onOpenRegistration }) =>
   const loadProducts = async () => {
     const data = await fetchData('products');
     if (data) {
-      // PRIVACY FILTER: Only show products for this user
-      // إعادة تفعيل الفلترة لضمان الخصوصية
       const userProducts = currentUser 
         ? data.filter(p => p.user_id == currentUser.id)
         : data.filter(p => !p.user_id);
@@ -197,13 +195,14 @@ export const AddProductScreen = ({ onBack, currentUser, onOpenRegistration }) =>
           currentUser={currentUser}
           onClose={handleModalClose} 
           onSuccess={handleSuccess} 
+          existingProducts={products}
         />
       )}
     </div>
   );
 };
 
-const ProductModal = ({ product, currentUser, onClose, onSuccess }) => {
+const ProductModal = ({ product, currentUser, onClose, onSuccess, existingProducts }) => {
   const [loading, setLoading] = useState(false);
   const [categories, setCategories] = useState([]);
   const [showScanner, setShowScanner] = useState(false);
@@ -213,11 +212,17 @@ const ProductModal = ({ product, currentUser, onClose, onSuccess }) => {
     name: '', quantity: '', purchase_price: '', selling_price: '', barcode: '', low_stock_alert: '', category: 'عام'
   });
 
+  // Refs for focus
+  const nameRef = useRef(null);
+  const purchasePriceRef = useRef(null);
+  const sellingPriceRef = useRef(null);
+  const quantityRef = useRef(null);
+  const lowStockRef = useRef(null);
+
   useEffect(() => {
     const fetchCats = async () => {
       const data = await fetchData('categories');
       if (data) {
-         // Filter categories for dropdown
          const userCats = currentUser 
             ? data.filter(c => c.user_id == currentUser.id)
             : data.filter(c => !c.user_id);
@@ -243,7 +248,39 @@ const ProductModal = ({ product, currentUser, onClose, onSuccess }) => {
 
   const handleSave = async (e) => {
     e.preventDefault();
-    if (!formData.name) return;
+    
+    // 1. Validation & Focus
+    if (!formData.name) {
+      alert('يرجى إكمال جميع الحقول المطلوبة');
+      if (nameRef.current) nameRef.current.focus();
+      return;
+    }
+    if (!formData.purchase_price) {
+      alert('يرجى إكمال جميع الحقول المطلوبة');
+      if (purchasePriceRef.current) purchasePriceRef.current.focus();
+      return;
+    }
+    if (!formData.selling_price) {
+      alert('يرجى إكمال جميع الحقول المطلوبة');
+      if (sellingPriceRef.current) sellingPriceRef.current.focus();
+      return;
+    }
+    if (formData.quantity === '') {
+      alert('يرجى إكمال جميع الحقول المطلوبة');
+      if (quantityRef.current) quantityRef.current.focus();
+      return;
+    }
+
+    // 2. Duplicate Check (Only if name changed or new product)
+    const isNameChanged = !product || (product && product.name !== formData.name);
+    if (isNameChanged) {
+      const isDuplicate = existingProducts.some(p => p.name.trim() === formData.name.trim());
+      if (isDuplicate) {
+        alert('عفواً، هذا السجل موجود مسبقاً');
+        if (nameRef.current) nameRef.current.focus();
+        return;
+      }
+    }
     
     setLoading(true);
     let error, isOffline;
@@ -378,6 +415,7 @@ const ProductModal = ({ product, currentUser, onClose, onSuccess }) => {
           <label className={labelStyles}>اسم المنتج</label>
           <div className="relative">
             <input 
+              ref={nameRef}
               name="name" 
               value={formData.name} 
               onChange={handleChange} 
@@ -397,13 +435,57 @@ const ProductModal = ({ product, currentUser, onClose, onSuccess }) => {
         </div>
         
         <div className="flex gap-3">
-             <div className="flex-1"><label className={labelStyles}>سعر الشراء</label><input name="purchase_price" value={formData.purchase_price} onChange={handleChange} type="number" className={inputStyles} placeholder="0.00" /></div>
-             <div className="flex-1"><label className={labelStyles}>سعر البيع</label><input name="selling_price" value={formData.selling_price} onChange={handleChange} type="number" className={inputStyles} placeholder="0.00" /></div>
+             <div className="flex-1">
+               <label className={labelStyles}>سعر الشراء</label>
+               <input 
+                  ref={purchasePriceRef}
+                  name="purchase_price" 
+                  value={formData.purchase_price} 
+                  onChange={handleChange} 
+                  type="number" 
+                  className={inputStyles} 
+                  placeholder="0.00" 
+               />
+             </div>
+             <div className="flex-1">
+               <label className={labelStyles}>سعر البيع</label>
+               <input 
+                  ref={sellingPriceRef}
+                  name="selling_price" 
+                  value={formData.selling_price} 
+                  onChange={handleChange} 
+                  type="number" 
+                  className={inputStyles} 
+                  placeholder="0.00" 
+               />
+             </div>
         </div>
 
         <div className="flex gap-3">
-           <div className="flex-1"><label className={labelStyles}>الكمية</label><input name="quantity" value={formData.quantity} onChange={handleChange} type="number" className={inputStyles} placeholder="0" /></div>
-           <div className="flex-1"><label className={labelStyles}>تنبيه المخزون</label><input name="low_stock_alert" value={formData.low_stock_alert} onChange={handleChange} type="number" className={inputStyles} placeholder="5" /></div>
+           <div className="flex-1">
+             <label className={labelStyles}>الكمية</label>
+             <input 
+                ref={quantityRef}
+                name="quantity" 
+                value={formData.quantity} 
+                onChange={handleChange} 
+                type="number" 
+                className={inputStyles} 
+                placeholder="0" 
+             />
+           </div>
+           <div className="flex-1">
+             <label className={labelStyles}>تنبيه المخزون</label>
+             <input 
+                ref={lowStockRef}
+                name="low_stock_alert" 
+                value={formData.low_stock_alert} 
+                onChange={handleChange} 
+                type="number" 
+                className={inputStyles} 
+                placeholder="5" 
+             />
+           </div>
         </div>
 
         <div>
