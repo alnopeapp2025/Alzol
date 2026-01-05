@@ -10,8 +10,7 @@ export const playSound = (type) => {
   try {
     if (type === 'click') {
       // --- CUSTOM SOUND (sound2.mp3) ---
-      // تم التحديث لاستخدام الملف الجديد
-      // تأكد من وضع ملف sound2.mp3 داخل مجلد public في مشروعك
+      // تم ربط الملف الجديد الموجود في مجلد public
       const audio = new Audio('/sound2.mp3');
       
       audio.volume = 0.6;
