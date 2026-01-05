@@ -1,5 +1,5 @@
-import React, { useState, useEffect } from 'react';
-import { ArrowRight, Plus, CreditCard, Trash2 } from 'lucide-react';
+import React, { useState, useEffect, useRef } from 'react';
+import { ArrowRight, Plus, CreditCard, Trash2, X, Save } from 'lucide-react';
 import { fetchData, insertData, deleteData } from '../lib/dataService'; 
 import { Toast } from '../components/Toast';
 import { ConfirmDialog } from '../components/ConfirmDialog';
@@ -17,6 +17,10 @@ export const DebtsScreen = ({ onBack, currentUser }) => {
     type: 'le' // 'le' (لنا) or '3le' (علينا)
   });
 
+  // Refs for focus
+  const nameRef = useRef(null);
+  const amountRef = useRef(null);
+
   useEffect(() => {
     loadDebts();
   }, [currentUser]);
@@ -33,7 +37,18 @@ export const DebtsScreen = ({ onBack, currentUser }) => {
 
   const handleSave = async (e) => {
     e.preventDefault();
-    if (!formData.name || !formData.amount) return;
+    
+    // 1. Validation & Focus
+    if (!formData.name) {
+      alert('يرجى إكمال جميع الحقول المطلوبة');
+      if (nameRef.current) nameRef.current.focus();
+      return;
+    }
+    if (!formData.amount) {
+      alert('يرجى إكمال جميع الحقول المطلوبة');
+      if (amountRef.current) amountRef.current.focus();
+      return;
+    }
 
     setLoading(true);
     const userId = currentUser ? currentUser.id : null;
@@ -143,16 +158,19 @@ export const DebtsScreen = ({ onBack, currentUser }) => {
               <div>
                 <label className="block text-[#c62828] text-xs font-bold mb-1 text-right px-1">الاسم</label>
                 <input
+                  ref={nameRef}
                   type="text"
                   value={formData.name}
                   onChange={(e) => setFormData({ ...formData, name: e.target.value })}
                   className="w-full h-12 px-4 rounded-xl border-2 border-[#c62828] focus:outline-none focus:ring-2 focus:ring-[#c62828]/50 text-right font-medium"
                   placeholder="اسم الشخص/الجهة"
+                  autoFocus
                 />
               </div>
               <div>
                 <label className="block text-[#c62828] text-xs font-bold mb-1 text-right px-1">المبلغ</label>
                 <input
+                  ref={amountRef}
                   type="number"
                   value={formData.amount}
                   onChange={(e) => setFormData({ ...formData, amount: e.target.value })}
