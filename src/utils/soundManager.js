@@ -9,19 +9,15 @@ export const playSound = (type) => {
 
   try {
     if (type === 'click') {
-      // --- TEST SOUND (صوت تجريبي) ---
-      // نستخدم رابط خارجي مضمون (Pop Sound) للتأكد من أن الكود يعمل
-      // We use a reliable external URL to prove the code works
-      const audio = new Audio('https://codeskulptor-demos.commondatastorage.googleapis.com/pang/pop.mp3');
-      
-      // --- YOUR CUSTOM SOUND (صوتك الخاص) ---
-      // عندما تريد تفعيل ملفك، احذف السطر أعلاه وفعل السطر أدناه:
-      // When you want to use your file, remove the line above and uncomment below:
-      // const audio = new Audio('/sound1.wav');
+      // --- CUSTOM SOUND (sound2.mp3) ---
+      // تم التحديث لاستخدام الملف الجديد
+      // تأكد من وضع ملف sound2.mp3 داخل مجلد public في مشروعك
+      const audio = new Audio('/sound2.mp3');
       
       audio.volume = 0.6;
       audio.play().catch(e => {
         console.warn("Click sound play failed:", e);
+        console.warn("Make sure sound2.mp3 is in the public folder");
       });
     } else if (type === 'barcode') {
       // الإبقاء على صوت الباركود الإلكتروني (Beep) كما هو
