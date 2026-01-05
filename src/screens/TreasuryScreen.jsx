@@ -84,7 +84,12 @@ export const TreasuryScreen = ({ onBack }) => {
     setShowZeroConfirm(false);
 
     if (!errorOccurred) {
+      // تحديث الواجهة فوراً لتظهر الأصفار
+      setTreasuryData(prev => prev.map(bank => ({ ...bank, amount: 0 })));
+      setTotalTreasury(0);
+      
       setToast({ show: true, message: isOfflineOp ? 'تم التصفير (وضع عدم الاتصال)' : 'تم تصفير الخزينة بنجاح' });
+      // إعادة تحميل البيانات للتأكيد (اختياري هنا لأننا حدثنا الواجهة يدوياً)
       loadData(currentUser?.id);
     } else {
       alert('حدث خطأ أثناء التصفير');

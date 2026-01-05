@@ -225,18 +225,6 @@ export const SalesScreen = ({ onBack }) => {
     setShowInvoice(true);
   };
 
-  const generatePDF = async () => {
-    const element = document.getElementById('invoice-content');
-    const opt = {
-      margin: 0,
-      filename: `invoice_${selectedInvoice.id}.pdf`,
-      image: { type: 'jpeg', quality: 0.98 },
-      html2canvas: { scale: 2, useCORS: true },
-      jsPDF: { unit: 'mm', format: 'a6', orientation: 'portrait' }
-    };
-    return html2pdf().set(opt).from(element);
-  };
-
   const handlePrint = async () => {
     playBeep();
     window.print();
@@ -244,18 +232,42 @@ export const SalesScreen = ({ onBack }) => {
 
   const handleShare = async () => {
     playBeep();
-    if (navigator.share) {
-      try {
+    try {
+      const element = document.getElementById('invoice-content');
+      const opt = {
+        margin: 0,
+        filename: `invoice_${selectedInvoice.id}.pdf`,
+        image: { type: 'jpeg', quality: 0.98 },
+        html2canvas: { scale: 2, useCORS: true },
+        jsPDF: { unit: 'mm', format: 'a6', orientation: 'portrait' }
+      };
+
+      // Generate PDF Blob
+      const blob = await html2pdf().set(opt).from(element).output('blob');
+      const file = new File([blob], opt.filename, { type: 'application/pdf' });
+
+      // Try sharing the file
+      if (navigator.share && navigator.canShare && navigator.canShare({ files: [file] })) {
         await navigator.share({
+          files: [file],
           title: 'فاتورة مبيعات',
-          text: `فاتورة رقم #${selectedInvoice.id}\nالمبلغ: ${selectedInvoice.total.toLocaleString()}`,
-          url: window.location.href
+          text: `فاتورة رقم #${selectedInvoice.id}`,
         });
-      } catch (error) {
-        console.log('Error sharing:', error);
+      } else {
+        // Fallback: Download the file
+        const url = URL.createObjectURL(blob);
+        const a = document.createElement('a');
+        a.href = url;
+        a.download = opt.filename;
+        document.body.appendChild(a);
+        a.click();
+        document.body.removeChild(a);
+        URL.revokeObjectURL(url);
       }
-    } else {
-      alert('المشاركة غير مدعومة في هذا المتصفح');
+    } catch (error) {
+      console.error('Error sharing/downloading PDF:', error);
+      alert('حدث خطأ أثناء إنشاء ملف PDF، سيتم محاولة الطباعة العادية.');
+      window.print();
     }
   };
 

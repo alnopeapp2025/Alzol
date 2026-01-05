@@ -1,3 +1,25 @@
 @tailwind base;
 @tailwind components;
 @tailwind utilities;
+
+/* Force English numbers in inputs and specific elements */
+input[type="number"], 
+input[type="text"], 
+input[type="password"], 
+textarea, 
+select {
+  font-family: 'Roboto', 'Arial', sans-serif;
+}
+
+/* Specific rule for number inputs to ensure LTR direction for Latin digits */
+input[type="number"] {
+  direction: ltr;
+  text-align: right;
+  font-variant-numeric: tabular-nums;
+}
+
+/* Utility class for forcing LTR direction (for displaying numbers) */
+.dir-ltr {
+  direction: ltr;
+  display: inline-block;
+}

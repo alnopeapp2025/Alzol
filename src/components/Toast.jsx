@@ -5,7 +5,8 @@ import { Check, AlertCircle } from 'lucide-react';
 export const Toast = ({ message, isVisible, onClose, type = 'success' }) => {
   useEffect(() => {
     if (isVisible) {
-      const timer = setTimeout(onClose, 3000);
+      // تم تعديل الوقت إلى 1000 مللي ثانية (ثانية واحدة) حسب الطلب
+      const timer = setTimeout(onClose, 1000);
       return () => clearTimeout(timer);
     }
   }, [isVisible, onClose]);
