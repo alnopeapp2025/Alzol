@@ -1,276 +1,228 @@
-import React, { useState, useEffect, useRef } from 'react';
-import { ArrowRight, Plus, CreditCard, Trash2, X, Save, Calendar, Clock } from 'lucide-react';
+import React, { useState, useEffect } from 'react';
+import { ArrowRight, Plus, CreditCard, Trash2, X, Save, Clock } from 'lucide-react';
 import { fetchData, insertData, deleteData } from '../lib/dataService'; 
 import { Toast } from '../components/Toast';
-import { ConfirmDialog } from '../components/ConfirmDialog';
+import { DashboardCard } from '../components/DashboardCard';
 
-export const DebtsScreen = ({ onBack, currentUser }) => {
+export const DebtsScreen = () => {
   const [debts, setDebts] = useState([]);
+  const [loading, setLoading] = useState(true);
   const [showModal, setShowModal] = useState(false);
-  const [loading, setLoading] = useState(false);
-  const [toast, setToast] = useState({ show: false, message: '', type: 'success' });
-  const [deleteDialog, setDeleteDialog] = useState({ show: false, id: null });
+  const [showToast, setShowToast] = useState(false);
+  const [toastMessage, setToastMessage] = useState('');
+  const [toastType, setToastType] = useState('success');
 
-  const [formData, setFormData] = useState({
-    name: '',
-    amount: '',
-    type: 'le', // 'le' (لنا) or '3le' (علينا)
-    due_date: '' // تاريخ السداد
-  });
-
-  // Refs for focus
-  const nameRef = useRef(null);
-  const amountRef = useRef(null);
-  const dateRef = useRef(null);
+  // Form
+  const [clientName, setClientName] = useState('');
+  const [amount, setAmount] = useState('');
+  const [dueDate, setDueDate] = useState(new Date().toISOString().split('T')[0]);
 
   useEffect(() => {
-    loadDebts();
-    
-    // Timer to update countdowns every second
-    const timer = setInterval(() => {
-      setDebts(prev => [...prev]); // Force re-render
-    }, 1000);
-    return () => clearInterval(timer);
-  }, [currentUser]);
+    loadData();
+    // Update countdown every minute
+    const interval = setInterval(() => {
+      setDebts(prev => [...prev]); // Force re-render for countdowns
+    }, 60000);
+    return () => clearInterval(interval);
+  }, []);
 
-  const loadDebts = async () => {
-    const data = await fetchData('debts');
-    if (data) {
-      const userItems = currentUser 
-        ? data.filter(c => c.user_id == currentUser.id)
-        : data.filter(c => !c.user_id);
-      setDebts(userItems);
+  const loadData = async () => {
+    try {
+      const data = await fetchData('debts');
+      setDebts(data || []);
+    } catch (error) {
+      console.error('Error loading debts:', error);
+    } finally {
+      setLoading(false);
     }
   };
 
-  const handleSave = async (e) => {
-    e.preventDefault();
-    
-    // 1. Validation & Focus (Custom Toast instead of Alert)
-    if (!formData.name) {
-      setToast({ show: true, message: 'يرجى إكمال جميع الحقول المطلوبة', type: 'error' });
-      if (nameRef.current) nameRef.current.focus();
-      return;
-    }
-    if (!formData.amount) {
-      setToast({ show: true, message: 'يرجى إكمال جميع الحقول المطلوبة', type: 'error' });
-      if (amountRef.current) amountRef.current.focus();
-      return;
-    }
-    if (!formData.due_date) {
-      setToast({ show: true, message: 'يرجى إكمال جميع الحقول المطلوبة', type: 'error' });
-      if (dateRef.current) dateRef.current.focus();
+  const handleSave = async () => {
+    if (!clientName || !amount || !dueDate) {
+      setToastMessage('يرجى إكمال جميع الحقول المطلوبة');
+      setToastType('error');
+      setShowToast(true);
+      setTimeout(() => setShowToast(false), 2000);
       return;
     }
 
-    setLoading(true);
-    const userId = currentUser ? currentUser.id : null;
-    
-    const { data, error, isOffline } = await insertData('debts', {
-      name: formData.name,
-      amount: formData.amount,
-      type: formData.type,
-      due_date: formData.due_date,
-      user_id: userId
-    });
+    try {
+      const newDebt = {
+        client_name: clientName,
+        amount: parseFloat(amount),
+        due_date: dueDate,
+        created_at: new Date().toISOString()
+      };
 
-    setLoading(false);
-    if (!error) {
-      setToast({ show: true, message: isOffline ? 'تم الحفظ (وضع عدم الاتصال)' : 'تمت إضافة الدين بنجاح', type: 'success' });
-      setShowModal(false);
-      setFormData({ name: '', amount: '', type: 'le', due_date: '' });
-      loadDebts(); // Refresh list immediately
-    } else {
-      setToast({ show: true, message: 'حدث خطأ أثناء الإضافة', type: 'error' });
+      const saved = await insertData('debts', newDebt);
+      if (saved) {
+        setDebts([saved, ...debts]);
+        setShowModal(false);
+        setClientName('');
+        setAmount('');
+        setDueDate(new Date().toISOString().split('T')[0]);
+        
+        setToastMessage('تم إضافة الدين بنجاح');
+        setToastType('success');
+        setShowToast(true);
+        setTimeout(() => setShowToast(false), 800); // Faster success toast
+      }
+    } catch (error) {
+      console.error('Error saving debt:', error);
+      setToastMessage('حدث خطأ أثناء الحفظ');
+      setToastType('error');
+      setShowToast(true);
+      setTimeout(() => setShowToast(false), 2000);
     }
   };
 
-  const handleDelete = async () => {
-    if (!deleteDialog.id) return;
-    const { error, isOffline } = await deleteData('debts', deleteDialog.id);
-    if (!error) {
-      setToast({ show: true, message: isOffline ? 'تم الحذف (وضع عدم الاتصال)' : 'تم الحذف بنجاح', type: 'success' });
-      setDebts(debts.filter(d => d.id !== deleteDialog.id));
+  const handleDelete = async (id) => {
+    if (window.confirm('هل أنت متأكد من سداد/حذف هذا الدين؟')) {
+      try {
+        await deleteData('debts', id);
+        setDebts(debts.filter(d => d.id !== id));
+        setToastMessage('تم الحذف بنجاح');
+        setToastType('success');
+        setShowToast(true);
+        setTimeout(() => setShowToast(false), 800);
+      } catch (error) {
+        console.error('Error deleting:', error);
+      }
     }
-    setDeleteDialog({ show: false, id: null });
   };
 
-  // Countdown Logic
-  const calculateTimeRemaining = (dueDateStr) => {
-    if (!dueDateStr) return null;
-    const due = new Date(dueDateStr);
+  const getRemainingTime = (dateStr) => {
+    const due = new Date(dateStr);
     const now = new Date();
-    const diff = due - now;
-
-    if (diff <= 0) return "مستحق الآن";
-
-    const days = Math.floor(diff / (1000 * 60 * 60 * 24));
-    const hours = Math.floor((diff % (1000 * 60 * 60 * 24)) / (1000 * 60 * 60));
-    const minutes = Math.floor((diff % (1000 * 60 * 60)) / (1000 * 60));
-    const seconds = Math.floor((diff % (1000 * 60)) / 1000);
-
-    return `${days}ي ${hours}س ${minutes}د ${seconds}ث`;
+    const diffTime = due - now;
+    const diffDays = Math.ceil(diffTime / (1000 * 60 * 60 * 24));
+    
+    if (diffDays &lt; 0) return 'متأخر';
+    if (diffDays === 0) return 'اليوم';
+    return `${diffDays} يوم`;
   };
+
+  const totalDebts = debts.reduce((sum, item) => sum + (item.amount || 0), 0);
 
   return (
-    <div className="h-screen flex flex-col bg-[#FFF9C4] overflow-hidden font-sans relative">
-      <Toast message={toast.message} isVisible={toast.show} onClose={() => setToast({ ...toast, show: false })} type={toast.type} />
-      <ConfirmDialog 
-        isOpen={deleteDialog.show}
-        title="حذف السجل"
-        message="هل أنت متأكد من حذف هذا السجل؟"
-        onConfirm={handleDelete}
-        onCancel={() => setDeleteDialog({ show: false, id: null })}
-      />
-
-      {/* Header */}
-      <div className="bg-[#00695c] text-white h-16 flex items-center px-4 shadow-lg shrink-0 rounded-b-2xl z-10">
-        <button onClick={onBack} className="p-2 hover:bg-[#005c4b] rounded-xl transition-colors active:scale-95">
-          <ArrowRight size={24} strokeWidth={2.5} />
-        </button>
-        <h1 className="text-xl font-bold flex-1 text-center ml-10">الديون</h1>
+    <div className="space-y-6 pb-20">
+       <div className="grid grid-cols-1 gap-4">
+        <DashboardCard 
+          title="إجمالي الديون" 
+          value={`${totalDebts.toLocaleString()} ر.س`} 
+          icon={CreditCard}
+          color="bg-orange-500"
+        >
+          {/* Moved Button Here */}
+          <button
+            onClick={() => setShowModal(true)}
+            className="bg-orange-500 hover:bg-orange-600 text-white p-2 rounded-full shadow-lg transition-all transform active:scale-95 flex items-center justify-center"
+            title="إضافة دين جديد"
+          >
+            <Plus size={24} />
+          </button>
+        </DashboardCard>
       </div>
 
-      {/* Content */}
-      <div className="flex-1 overflow-y-auto p-4 pb-20 custom-scrollbar">
-        {debts.length === 0 ? (
-          <div className="text-center text-gray-400 mt-20 font-medium">لا توجد ديون مسجلة</div>
-        ) : (
-          <div className="flex flex-col gap-3">
-            {debts.map((item) => (
-              <div key={item.id} className="bg-white rounded-xl p-3 shadow-sm border border-gray-100 relative group">
-                 <button 
-                  onClick={() => setDeleteDialog({ show: true, id: item.id })}
-                  className="absolute top-3 left-3 text-gray-300 hover:text-red-500 transition-colors"
-                >
-                  <Trash2 size={18} />
-                </button>
-
-                <div className="flex items-center justify-between mb-2">
-                  <div className="flex items-center gap-3">
-                    <div className={`w-12 h-12 rounded-lg flex items-center justify-center text-white font-bold text-lg ${item.type === 'le' ? 'bg-green-600' : 'bg-red-600'}`}>
-                      {item.type === 'le' ? 'لنا' : 'علينا'}
-                    </div>
-                    <div>
-                      <h3 className="font-bold text-gray-800 text-lg">{item.name}</h3>
-                      {item.due_date && (
-                        <div className="flex items-center gap-1 text-[10px] text-gray-500 font-bold mt-1">
-                          <Calendar size={12} />
-                          <span className="dir-ltr">{new Date(item.due_date).toLocaleDateString('en-GB')}</span>
-                        </div>
-                      )}
-                    </div>
-                  </div>
-                  <div className="text-left pl-8">
-                    <span className={`font-black text-lg dir-ltr ${item.type === 'le' ? 'text-green-700' : 'text-red-700'}`}>
-                      {Number(item.amount).toLocaleString()}
-                    </span>
-                    <span className="text-[10px] text-gray-400 block font-bold text-center">ج.س</span>
+      <div className="bg-white rounded-2xl shadow-sm border border-gray-100 overflow-hidden">
+        <div className="p-4 border-b border-gray-100 bg-gray-50">
+          <h3 className="font-bold text-gray-800">سجل الديون</h3>
+        </div>
+        
+        <div className="divide-y divide-gray-50">
+          {debts.length === 0 ? (
+            <div className="p-8 text-center text-gray-400">لا توجد ديون مسجلة</div>
+          ) : (
+            debts.map((debt) => (
+              <div key={debt.id} className="p-4 flex justify-between items-center hover:bg-gray-50">
+                <div>
+                  <h4 className="font-bold text-gray-800">{debt.client_name}</h4>
+                  <div className="flex items-center gap-2 text-xs text-gray-500 mt-1">
+                    <Clock size={12} />
+                    <span>متبقي: {getRemainingTime(debt.due_date)}</span>
+                    <span className="text-gray-300">|</span>
+                    <span>استحقاق: {debt.due_date}</span>
                   </div>
                 </div>
-
-                {/* Countdown Timer */}
-                {item.due_date && (
-                  <div className="bg-gray-50 rounded-lg p-2 flex items-center justify-between border border-gray-100">
-                    <div className="flex items-center gap-1 text-xs text-gray-500 font-bold">
-                      <Clock size={14} className="text-[#00695c]" />
-                      <span>متبقي:</span>
-                    </div>
-                    <span className="font-mono font-bold text-[#00695c] text-sm dir-ltr">
-                      {calculateTimeRemaining(item.due_date)}
-                    </span>
-                  </div>
-                )}
+                <div className="flex items-center gap-3">
+                  <span className="font-bold text-orange-600 font-mono">
+                    {debt.amount.toLocaleString()}
+                  </span>
+                  <button 
+                    onClick={() => handleDelete(debt.id)}
+                    className="text-gray-400 hover:text-green-500 p-1"
+                    title="سداد"
+                  >
+                    <Trash2 size={18} />
+                  </button>
+                </div>
               </div>
-            ))}
-          </div>
-        )}
+            ))
+          )}
+        </div>
       </div>
 
-      {/* FAB */}
-      <button 
-        onClick={() => setShowModal(true)}
-        className="absolute bottom-6 left-6 w-14 h-14 bg-[#c62828] text-white rounded-2xl shadow-xl flex items-center justify-center hover:bg-[#b71c1c] active:scale-90 transition-all z-20"
-      >
-        <Plus size={32} strokeWidth={3} />
-      </button>
-
-      {/* Add Modal */}
-      {showModal && (
-        <div className="fixed inset-0 z-50 flex items-center justify-center p-4">
-          <div className="absolute inset-0 bg-black/50 backdrop-blur-sm" onClick={() => setShowModal(false)} />
-          <div className="bg-white w-full max-w-sm rounded-3xl shadow-2xl overflow-hidden relative z-10 animate-in zoom-in duration-200">
-            <div className="bg-[#c62828] text-white p-4 flex justify-between items-center">
-              <h2 className="text-lg font-bold">إضافة دين جديد</h2>
-              <button onClick={() => setShowModal(false)} className="p-1 hover:bg-white/20 rounded-full">
+      {showModal &amp;&amp; (
+        <div className="fixed inset-0 bg-black/50 backdrop-blur-sm z-50 flex items-center justify-center p-4">
+          <div className="bg-white rounded-2xl w-full max-w-md overflow-hidden shadow-2xl animate-in fade-in zoom-in duration-200">
+            <div className="p-4 border-b border-gray-100 bg-gray-50 flex justify-between items-center">
+              <h3 className="font-bold text-lg">إضافة دين جديد</h3>
+              <button onClick={() => setShowModal(false)} className="text-gray-400 hover:text-gray-600">
                 <X size={24} />
               </button>
             </div>
-            <form onSubmit={handleSave} className="p-5 flex flex-col gap-4">
+            
+            <div className="p-6 space-y-4">
               <div>
-                <label className="block text-[#c62828] text-xs font-bold mb-1 text-right px-1">الاسم</label>
+                <label className="block text-sm font-medium text-gray-700 mb-1">اسم العميل / الجهة</label>
                 <input
-                  ref={nameRef}
                   type="text"
-                  value={formData.name}
-                  onChange={(e) => setFormData({ ...formData, name: e.target.value })}
-                  className="w-full h-12 px-4 rounded-xl border-2 border-[#c62828] focus:outline-none focus:ring-2 focus:ring-[#c62828]/50 text-right font-medium"
-                  placeholder="اسم الشخص/الجهة"
+                  value={clientName}
+                  onChange={(e) => setClientName(e.target.value)}
+                  className="w-full p-3 border border-gray-200 rounded-xl focus:ring-2 focus:ring-orange-500 outline-none"
                   autoFocus
                 />
               </div>
+
               <div>
-                <label className="block text-[#c62828] text-xs font-bold mb-1 text-right px-1">المبلغ</label>
+                <label className="block text-sm font-medium text-gray-700 mb-1">المبلغ</label>
                 <input
-                  ref={amountRef}
                   type="number"
-                  value={formData.amount}
-                  onChange={(e) => setFormData({ ...formData, amount: e.target.value })}
-                  className="w-full h-12 px-4 rounded-xl border-2 border-[#c62828] focus:outline-none focus:ring-2 focus:ring-[#c62828]/50 text-right font-bold text-lg"
-                  placeholder="0.00"
+                  value={amount}
+                  onChange={(e) => setAmount(e.target.value)}
+                  className="w-full p-3 border border-gray-200 rounded-xl focus:ring-2 focus:ring-orange-500 outline-none font-mono text-left"
                 />
               </div>
+
               <div>
-                <label className="block text-[#c62828] text-xs font-bold mb-1 text-right px-1">تاريخ السداد</label>
+                <label className="block text-sm font-medium text-gray-700 mb-1">تاريخ السداد</label>
                 <input
-                  ref={dateRef}
                   type="date"
-                  min={new Date().toISOString().split('T')[0]} // Min date is today
-                  value={formData.due_date}
-                  onChange={(e) => setFormData({ ...formData, due_date: e.target.value })}
-                  className="w-full h-12 px-4 rounded-xl border-2 border-[#c62828] focus:outline-none focus:ring-2 focus:ring-[#c62828]/50 text-right font-medium bg-white"
+                  value={dueDate}
+                  min={new Date().toISOString().split('T')[0]}
+                  onChange={(e) => setDueDate(e.target.value)}
+                  className="w-full p-3 border border-gray-200 rounded-xl focus:ring-2 focus:ring-orange-500 outline-none"
                 />
               </div>
-              <div>
-                <label className="block text-[#c62828] text-xs font-bold mb-1 text-right px-1">نوع الدين</label>
-                <div className="flex gap-2">
-                  <button
-                    type="button"
-                    onClick={() => setFormData({ ...formData, type: 'le' })}
-                    className={`flex-1 h-12 rounded-xl font-bold transition-colors ${formData.type === 'le' ? 'bg-green-600 text-white shadow-md' : 'bg-gray-100 text-gray-500'}`}
-                  >
-                    لنا (دائن)
-                  </button>
-                  <button
-                    type="button"
-                    onClick={() => setFormData({ ...formData, type: '3le' })}
-                    className={`flex-1 h-12 rounded-xl font-bold transition-colors ${formData.type === '3le' ? 'bg-red-600 text-white shadow-md' : 'bg-gray-100 text-gray-500'}`}
-                  >
-                    علينا (مدين)
-                  </button>
-                </div>
-              </div>
-              <button 
-                type="submit" 
-                disabled={loading}
-                className="w-full bg-[#c62828] text-white h-14 rounded-xl font-bold text-lg shadow-md hover:bg-[#b71c1c] flex items-center justify-center gap-2 mt-2"
+
+              <button
+                onClick={handleSave}
+                className="w-full bg-orange-500 hover:bg-orange-600 text-white py-3 rounded-xl font-bold shadow-lg mt-2 flex items-center justify-center gap-2"
               >
-                <Save size={24} />
-                <span>حفظ</span>
+                <Save size={20} />
+                حفظ
               </button>
-            </form>
+            </div>
           </div>
         </div>
+      )}
+
+      {showToast &amp;&amp; (
+        <Toast 
+          message={toastMessage} 
+          type={toastType} 
+          onClose={() => setShowToast(false)} 
+        />
       )}
     </div>
   );

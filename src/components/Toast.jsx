@@ -5,11 +5,12 @@ import { Check, AlertCircle, XCircle } from 'lucide-react';
 export const Toast = ({ message, isVisible, onClose, type = 'success' }) => {
   useEffect(() => {
     if (isVisible) {
-      // إغلاق التنبيه تلقائياً بعد 2.5 ثانية للقراءة بوضوح
-      const timer = setTimeout(onClose, 2500);
+      // تسريع رسائل النجاح (800ms) وإبقاء رسائل الخطأ لفترة كافية للقراءة (2500ms)
+      const duration = type === 'error' ? 2500 : 800;
+      const timer = setTimeout(onClose, duration);
       return () => clearTimeout(timer);
     }
-  }, [isVisible, onClose]);
+  }, [isVisible, onClose, type]);
 
   // تحديد الألوان والأيقونة بناءً على نوع الرسالة
   const isError = type === 'error';

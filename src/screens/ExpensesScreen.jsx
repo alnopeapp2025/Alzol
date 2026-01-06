@@ -1,419 +1,275 @@
-import React, { useState, useEffect, useRef } from 'react';
-import { ArrowRight, Plus, Wallet, AlertCircle, Calendar, Save, X, Trash2, Edit } from 'lucide-react';
-import { fetchData, insertData, updateData, deleteData } from '../lib/dataService'; 
+import React, { useState, useEffect } from 'react';
+import { Plus, DollarSign, Calendar, Trash2, Search, Filter } from 'lucide-react';
+import { fetchData, insertData, deleteData } from '../lib/dataService';
+import { DashboardCard } from '../components/DashboardCard';
 import { Toast } from '../components/Toast';
-import { ConfirmDialog } from '../components/ConfirmDialog';
 
-export const ExpensesScreen = ({ onBack }) => {
+export const ExpensesScreen = () => {
   const [expenses, setExpenses] = useState([]);
-  const [balances, setBalances] = useState({});
+  const [loading, setLoading] = useState(true);
   const [showModal, setShowModal] = useState(false);
-  const [loading, setLoading] = useState(false);
-  const [toast, setToast] = useState({ show: false, message: '' });
-  const [currentUser, setCurrentUser] = useState(null);
-  
-  // Edit/Delete State
-  const [selectedExpense, setSelectedExpense] = useState(null);
-  const [showActionModal, setShowActionModal] = useState(false);
-  const [showDeleteConfirm, setShowDeleteConfirm] = useState(false);
-  const [isEditing, setIsEditing] = useState(false);
+  const [showToast, setShowToast] = useState(false);
+  const [toastMessage, setToastMessage] = useState('');
+  const [toastType, setToastType] = useState('success');
+  const [treasuryBalance, setTreasuryBalance] = useState(0);
 
   // Form State
-  const [formData, setFormData] = useState({
-    name: '',
-    amount: '',
-    payment_method: 'بنكك - بنك الخرطوم'
-  });
-
-  // Refs
-  const nameRef = useRef(null);
-  const amountRef = useRef(null);
+  const [title, setTitle] = useState('');
+  const [amount, setAmount] = useState('');
+  const [date, setDate] = useState(new Date().toISOString().split('T')[0]);
 
   useEffect(() => {
-    const savedUser = localStorage.getItem('app_user');
-    if (savedUser) {
-      setCurrentUser(JSON.parse(savedUser));
-    }
+    loadData();
   }, []);
 
-  useEffect(() => {
-    loadData();
-  }, [currentUser]);
-
   const loadData = async () => {
-    await fetchExpenses();
-    await fetchBalances();
-  };
-
-  const fetchExpenses = async () => {
-    const data = await fetchData('expenses');
-    if (data) {
-      const userExpenses = currentUser 
-        ? data.filter(e => e.user_id == currentUser.id)
-        : data.filter(e => !e.user_id);
-      setExpenses(userExpenses);
+    try {
+      const [expensesData, treasuryData] = await Promise.all([
+        fetchData('expenses'),
+        fetchData('treasury_log')
+      ]);
+      
+      setExpenses(expensesData || []);
+      
+      // Calculate current treasury balance
+      const balance = (treasuryData || []).reduce((acc, curr) => {
+        return curr.type === 'income' ? acc + curr.amount : acc - curr.amount;
+      }, 0);
+      setTreasuryBalance(balance);
+    } catch (error) {
+      console.error('Error loading data:', error);
+    } finally {
+      setLoading(false);
     }
   };
 
-  const fetchBalances = async () => {
-    const data = await fetchData('treasury_balances');
-    if (data) {
-      const userBalances = currentUser 
-        ? data.filter(b => b.user_id == currentUser.id)
-        : data.filter(b => !b.user_id);
-
-      const balanceMap = {};
-      userBalances.forEach(item => {
-        balanceMap[item.name] = item.amount;
-      });
-      setBalances(balanceMap);
-    }
-  };
-
-  const getFormattedDate = () => {
-    const date = new Date();
-    const day = String(date.getDate()).padStart(2, '0');
-    const month = date.toLocaleString('default', { month: 'short' });
-    return `${day} ${month}`;
-  };
-
-  const handleSave = async (e) => {
-    e.preventDefault();
-    
-    // 1. Validation & Focus
-    if (!formData.name) {
-      alert('يرجى إكمال جميع الحقول المطلوبة');
-      if (nameRef.current) nameRef.current.focus();
-      return;
-    }
-    if (!formData.amount) {
-      alert('يرجى إكمال جميع الحقول المطلوبة');
-      if (amountRef.current) amountRef.current.focus();
+  const handleSave = async () => {
+    if (!title || !amount) {
+      setToastMessage('يرجى إكمال جميع الحقول المطلوبة');
+      setToastType('error');
+      setShowToast(true);
+      setTimeout(() => setShowToast(false), 2000);
       return;
     }
 
-    // 2. Duplicate Check (Only if name changed or new expense)
-    // For expenses, we check if an expense with the exact same name exists in the list
-    // This is to prevent accidental double entry or if the user wants unique expense names
-    const isNameChanged = !isEditing || (selectedExpense && selectedExpense.name !== formData.name);
-    if (isNameChanged) {
-      const isDuplicate = expenses.some(e => e.name.trim() === formData.name.trim());
-      if (isDuplicate) {
-        alert('عفواً، هذا السجل موجود مسبقاً');
-        if (nameRef.current) nameRef.current.focus();
-        return;
-      }
-    }
-
-    const amount = parseFloat(formData.amount);
-    const userId = currentUser ? currentUser.id : null;
+    const expenseAmount = parseFloat(amount);
     
-    if (!isEditing) {
-      const balance = balances[formData.payment_method] || 0;
-      if (amount > balance) {
-        alert(`عفواً، الرصيد غير كافٍ في ${formData.payment_method}. الرصيد المتاح: ${balance.toLocaleString()}`);
-        return;
-      }
+    // Check balance
+    if (expenseAmount > treasuryBalance) {
+      setToastMessage('عفواً الرصيد غير كافي');
+      setToastType('error');
+      setShowToast(true);
+      setTimeout(() => setShowToast(false), 2000);
+      return;
     }
 
-    setLoading(true);
-    let isOfflineOp = false;
+    // Check duplicate
+    const isDuplicate = expenses.some(
+      ex => ex.title.toLowerCase() === title.trim().toLowerCase() && 
+            ex.amount === expenseAmount && 
+            ex.date === date
+    );
 
-    if (isEditing && selectedExpense) {
-      const oldAmount = parseFloat(selectedExpense.amount);
-      const diff = amount - oldAmount;
+    if (isDuplicate) {
+      setToastMessage('عفواً هذا السجل موجود مسبقاً');
+      setToastType('error');
+      setShowToast(true);
+      setTimeout(() => setShowToast(false), 2000);
+      return;
+    }
 
-      const { error, isOffline } = await updateData('expenses', selectedExpense.id, {
-        name: formData.name,
-        amount: amount
-      });
+    try {
+      const newExpense = {
+        title,
+        amount: expenseAmount,
+        date,
+      };
 
-      if (!error) {
-        if (isOffline) isOfflineOp = true;
+      const saved = await insertData('expenses', newExpense);
+      if (saved) {
+        // Add to treasury log as expense
+        await insertData('treasury_log', {
+          type: 'expense',
+          amount: expenseAmount,
+          description: `مصروف: ${title}`,
+          date: new Date().toISOString()
+        });
+
+        setExpenses([saved, ...expenses]);
+        setTreasuryBalance(prev => prev - expenseAmount);
+        setShowModal(false);
+        setTitle('');
+        setAmount('');
         
-        const treasuryData = await fetchData('treasury_balances');
-        const balanceItem = treasuryData.find(d => 
-          d.name === selectedExpense.payment_method && (userId ? d.user_id == userId : !d.user_id)
-        );
-
-        if (balanceItem) {
-          await updateData('treasury_balances', balanceItem.id, {
-            amount: Number(balanceItem.amount) - diff
-          });
-        }
-
-        setToast({ show: true, message: isOffline ? 'تم التحديث (وضع عدم الاتصال)' : 'تم تحديث المصروف بنجاح' });
-      } else {
-        alert('حدث خطأ أثناء التحديث');
+        setToastMessage('تم إضافة المصروف بنجاح');
+        setToastType('success');
+        setShowToast(true);
+        setTimeout(() => setShowToast(false), 800); // Faster success toast
       }
-    } else {
-      const { error, isOffline } = await insertData('expenses', {
-        name: formData.name,
-        amount: amount,
-        payment_method: formData.payment_method,
-        expense_date: getFormattedDate(),
-        user_id: userId
-      });
+    } catch (error) {
+      console.error('Error saving expense:', error);
+      setToastMessage('حدث خطأ أثناء الحفظ');
+      setToastType('error');
+      setShowToast(true);
+      setTimeout(() => setShowToast(false), 2000);
+    }
+  };
 
-      if (!error) {
-        if (isOffline) isOfflineOp = true;
-
-        const treasuryData = await fetchData('treasury_balances');
-        const balanceItem = treasuryData.find(d => 
-          d.name === formData.payment_method && (userId ? d.user_id == userId : !d.user_id)
-        );
-
-        if (balanceItem) {
-           await updateData('treasury_balances', balanceItem.id, {
-             amount: Number(balanceItem.amount) - amount
-           });
-        } else {
-           await insertData('treasury_balances', {
-             name: formData.payment_method,
-             amount: -amount,
-             user_id: userId
-           });
+  const handleDelete = async (id, amount) => {
+    if (window.confirm('هل أنت متأكد من حذف هذا المصروف؟')) {
+      try {
+        const success = await deleteData('expenses', id);
+        if (success) {
+          setExpenses(expenses.filter(e => e.id !== id));
+          // Refund to treasury (optional logic, usually deleting expense assumes refund or correction)
+          setTreasuryBalance(prev => prev + amount);
+          
+          setToastMessage('تم الحذف بنجاح');
+          setToastType('success');
+          setShowToast(true);
+          setTimeout(() => setShowToast(false), 800);
         }
-
-        setToast({ show: true, message: isOffline ? 'تم الحفظ (وضع عدم الاتصال)' : 'تمت إضافة المصروف بنجاح' });
-      } else {
-        alert('حدث خطأ أثناء الحفظ');
+      } catch (error) {
+        console.error('Error deleting:', error);
       }
     }
-
-    setLoading(false);
-    setShowModal(false);
-    setIsEditing(false);
-    setSelectedExpense(null);
-    setFormData({ name: '', amount: '', payment_method: 'بنكك - بنك الخرطوم' });
-    
-    loadData();
   };
 
-  const handleExpenseClick = (item) => {
-    setSelectedExpense(item);
-    setShowActionModal(true);
-  };
-
-  const handleEditClick = () => {
-    if (!selectedExpense) return;
-    setFormData({
-      name: selectedExpense.name,
-      amount: selectedExpense.amount,
-      payment_method: selectedExpense.payment_method
-    });
-    setIsEditing(true);
-    setShowModal(true);
-    setShowActionModal(false);
-  };
-
-  const handleDelete = async () => {
-    if (!selectedExpense) return;
-    const { error, isOffline } = await deleteData('expenses', selectedExpense.id);
-    if (!error) {
-      setToast({ show: true, message: isOffline ? 'تم الحذف (وضع عدم الاتصال)' : 'تم حذف المصروف بنجاح' });
-      fetchExpenses();
-    }
-    setShowDeleteConfirm(false);
-    setShowActionModal(false);
-  };
-
-  const totalExpenses = expenses.reduce((sum, item) => sum + Number(item.amount), 0);
+  const totalExpenses = expenses.reduce((sum, item) => sum + (item.amount || 0), 0);
 
   return (
-    <div className="h-screen flex flex-col bg-[#FFF9C4] overflow-hidden font-sans relative">
-      <Toast 
-        message={toast.message} 
-        isVisible={toast.show} 
-        onClose={() => setToast({ ...toast, show: false })} 
-      />
-
-      <ConfirmDialog 
-        isOpen={showDeleteConfirm}
-        title="حذف المصروف"
-        message="هل أنت متأكد من حذف هذا المصروف؟"
-        onConfirm={handleDelete}
-        onCancel={() => setShowDeleteConfirm(false)}
-      />
-
-      {/* Header */}
-      <div className="bg-[#00695c] text-white h-16 flex items-center px-4 shadow-lg shrink-0 rounded-b-2xl z-10">
-        <button 
-          onClick={onBack}
-          className="p-2 hover:bg-[#005c4b] rounded-xl transition-colors active:scale-95"
+    <div className="space-y-6 pb-20">
+      {/* Header Stats */}
+      <div className="grid grid-cols-1 gap-4">
+        <DashboardCard 
+          title="مجموع المصروفات" 
+          value={`${totalExpenses.toLocaleString()} ر.س`} 
+          icon={DollarSign}
+          color="bg-red-500"
         >
-          <ArrowRight size={24} strokeWidth={2.5} />
-        </button>
-        <h1 className="text-xl font-bold flex-1 text-center ml-10">المصروفات</h1>
+          {/* Moved Button Here */}
+          <button
+            onClick={() => setShowModal(true)}
+            className="bg-red-500 hover:bg-red-600 text-white p-2 rounded-full shadow-lg transition-all transform active:scale-95 flex items-center justify-center"
+            title="إضافة مصروف جديد"
+          >
+            <Plus size={24} />
+          </button>
+        </DashboardCard>
       </div>
 
-      {/* Content */}
-      <div className="flex-1 overflow-y-auto p-4 pb-20 custom-scrollbar">
-        {expenses.length === 0 ? (
-          <div className="h-full flex flex-col items-center justify-center text-gray-400 opacity-80 mt-[-40px]">
-            <div className="w-20 h-20 bg-gray-100 rounded-full flex items-center justify-center mb-4">
-              <Wallet size={40} className="text-gray-300" />
+      {/* List */}
+      <div className="bg-white rounded-2xl shadow-sm border border-gray-100 overflow-hidden">
+        <div className="p-4 border-b border-gray-100 flex justify-between items-center bg-gray-50">
+          <h3 className="font-bold text-gray-800 flex items-center gap-2">
+            <Filter size={18} />
+            سجل المصروفات
+          </h3>
+          <span className="text-xs text-gray-500 bg-white px-2 py-1 rounded-lg border">
+            {expenses.length} مصروف
+          </span>
+        </div>
+        
+        <div className="divide-y divide-gray-50">
+          {loading ? (
+            <div className="p-8 text-center text-gray-400">جاري التحميل...</div>
+          ) : expenses.length === 0 ? (
+            <div className="p-8 text-center text-gray-400 flex flex-col items-center gap-2">
+              <Search size={32} className="opacity-20" />
+              <p>لا توجد مصروفات مسجلة</p>
             </div>
-            <p className="font-bold text-lg text-center max-w-[200px]">
-              لاتوجد مصروفات جديده اضغط + واضف مصروفاتك
-            </p>
-          </div>
-        ) : (
-          <div className="flex flex-col gap-3">
-            {expenses.map((item) => (
-              <button 
-                key={item.id} 
-                onClick={() => handleExpenseClick(item)}
-                className="bg-white rounded-xl p-3 shadow-sm border border-gray-100 flex items-center justify-between active:scale-[0.98] transition-transform w-full"
-              >
+          ) : (
+            expenses.map((expense) => (
+              <div key={expense.id} className="p-4 flex justify-between items-center hover:bg-gray-50 transition-colors">
                 <div className="flex items-center gap-3">
-                  <div className="w-12 h-12 rounded-lg bg-red-50 flex items-center justify-center text-red-500">
-                    <Wallet size={24} />
+                  <div className="w-10 h-10 rounded-full bg-red-50 flex items-center justify-center text-red-500">
+                    <DollarSign size={20} />
                   </div>
-                  <div className="text-right">
-                    <h3 className="font-bold text-gray-800">{item.name}</h3>
-                    <span className="text-xs text-gray-500 flex items-center gap-1">
-                      <Calendar size={12} /> {item.expense_date} • {item.payment_method}
-                    </span>
+                  <div>
+                    <h4 className="font-bold text-gray-800">{expense.title}</h4>
+                    <div className="flex items-center gap-2 text-xs text-gray-400 mt-0.5">
+                      <Calendar size={12} />
+                      <span>{expense.date}</span>
+                    </div>
                   </div>
                 </div>
-                <div className="text-left">
-                  <span className="block font-black text-red-600 text-lg dir-ltr">
-                    -{Number(item.amount).toLocaleString()}
+                <div className="flex items-center gap-3">
+                  <span className="font-bold text-red-600 font-mono">
+                    -{expense.amount.toLocaleString()}
                   </span>
-                  <span className="text-[10px] text-gray-400 font-bold">ج.س</span>
+                  <button 
+                    onClick={() => handleDelete(expense.id, expense.amount)}
+                    className="text-gray-400 hover:text-red-500 transition-colors p-1"
+                  >
+                    <Trash2 size={18} />
+                  </button>
                 </div>
-              </button>
-            ))}
-
-            <div className="border-t border-dashed border-red-300 my-2 mx-2"></div>
-
-            <div className="px-3 flex items-center justify-between">
-              <div className="flex items-center gap-3">
-                 <div className="w-12 h-1 invisible"></div>
-                 <div className="font-bold text-gray-800 text-lg">
-                    مجموع المصروفات
-                 </div>
               </div>
-              <div className="text-left">
-                <span className="block font-black text-red-600 text-xl dir-ltr">
-                  -{totalExpenses.toLocaleString()}
-                </span>
-                <span className="text-[10px] text-gray-400 font-bold">ج.س</span>
-              </div>
-            </div>
-          </div>
-        )}
+            ))
+          )}
+        </div>
       </div>
 
-      {/* FAB */}
-      <button 
-        onClick={() => {
-          setIsEditing(false);
-          setFormData({ name: '', amount: '', payment_method: 'بنكك - بنك الخرطوم' });
-          setShowModal(true);
-        }}
-        className="absolute bottom-6 left-6 w-14 h-14 bg-[#00695c] text-white rounded-2xl shadow-xl flex items-center justify-center hover:bg-[#005c4b] active:scale-90 transition-all z-20"
-      >
-        <Plus size={32} strokeWidth={3} />
-      </button>
+      {/* Modal */}
+      {showModal &amp;&amp; (
+        <div className="fixed inset-0 bg-black/50 backdrop-blur-sm z-50 flex items-center justify-center p-4">
+          <div className="bg-white rounded-2xl w-full max-w-md overflow-hidden shadow-2xl animate-in fade-in zoom-in duration-200">
+            <div className="p-4 border-b border-gray-100 bg-gray-50 flex justify-between items-center">
+              <h3 className="font-bold text-lg">إضافة مصروف جديد</h3>
+              <button onClick={() => setShowModal(false)} className="text-gray-400 hover:text-gray-600">✕</button>
+            </div>
+            
+            <div className="p-6 space-y-4">
+              <div>
+                <label className="block text-sm font-medium text-gray-700 mb-1">عنوان المصروف</label>
+                <input
+                  type="text"
+                  value={title}
+                  onChange={(e) => setTitle(e.target.value)}
+                  className="w-full p-3 border border-gray-200 rounded-xl focus:ring-2 focus:ring-red-500 focus:border-red-500 outline-none transition-all"
+                  placeholder="مثال: فاتورة كهرباء"
+                  autoFocus
+                />
+              </div>
 
-      {/* Action Modal */}
-      {showActionModal && (
-        <div className="fixed inset-0 z-50 flex items-start justify-center p-4 pt-24">
-          <div className="absolute inset-0 bg-black/50 backdrop-blur-sm" onClick={() => setShowActionModal(false)} />
-          <div className="bg-white w-full max-w-sm rounded-2xl p-4 relative z-10 animate-in slide-in-from-top duration-200 shadow-xl">
-            <h3 className="text-center font-bold text-gray-800 mb-4 text-lg">خيارات المصروف</h3>
-            <div className="flex gap-3">
-              <button 
-                onClick={() => setShowDeleteConfirm(true)}
-                className="flex-1 bg-red-50 text-red-600 h-12 rounded-xl font-bold flex items-center justify-center gap-2 hover:bg-red-100"
+              <div>
+                <label className="block text-sm font-medium text-gray-700 mb-1">المبلغ</label>
+                <input
+                  type="number"
+                  value={amount}
+                  onChange={(e) => setAmount(e.target.value)}
+                  className="w-full p-3 border border-gray-200 rounded-xl focus:ring-2 focus:ring-red-500 focus:border-red-500 outline-none transition-all font-mono text-left"
+                  placeholder="0.00"
+                />
+              </div>
+
+              <div>
+                <label className="block text-sm font-medium text-gray-700 mb-1">التاريخ</label>
+                <input
+                  type="date"
+                  value={date}
+                  onChange={(e) => setDate(e.target.value)}
+                  className="w-full p-3 border border-gray-200 rounded-xl focus:ring-2 focus:ring-red-500 focus:border-red-500 outline-none transition-all"
+                />
+              </div>
+
+              <button
+                onClick={handleSave}
+                className="w-full bg-red-500 hover:bg-red-600 text-white py-3 rounded-xl font-bold shadow-lg shadow-red-500/20 transition-all active:scale-95 mt-2"
               >
-                <Trash2 size={20} /> حذف
-              </button>
-              <button 
-                onClick={handleEditClick}
-                className="flex-1 bg-blue-50 text-blue-600 h-12 rounded-xl font-bold flex items-center justify-center gap-2 hover:bg-blue-100"
-              >
-                <Edit size={20} /> تعديل
+                حفظ المصروف
               </button>
             </div>
           </div>
         </div>
       )}
 
-      {/* Add/Edit Expense Modal */}
-      {showModal && (
-        <div className="fixed inset-0 z-50 flex items-end sm:items-center justify-center p-4">
-          <div className="absolute inset-0 bg-black/50 backdrop-blur-sm" onClick={() => setShowModal(false)} />
-          
-          <div className="bg-white w-full max-w-sm rounded-3xl shadow-2xl overflow-hidden relative z-10 animate-in slide-in-from-bottom duration-300">
-            <div className="bg-[#00695c] text-white p-4 flex justify-between items-center">
-              <h2 className="text-lg font-bold">{isEditing ? 'تعديل المصروف' : 'إضافة مصروف جديد'}</h2>
-              <button onClick={() => setShowModal(false)} className="p-1 hover:bg-white/20 rounded-full">
-                <X size={24} />
-              </button>
-            </div>
-
-            <form onSubmit={handleSave} className="p-5 flex flex-col gap-4">
-              <div>
-                <label className="block text-[#00695c] text-xs font-bold mb-1 text-right px-1">اسم المصروف</label>
-                <input
-                  ref={nameRef}
-                  type="text"
-                  value={formData.name}
-                  onChange={(e) => setFormData({ ...formData, name: e.target.value })}
-                  placeholder="مثلا كهرباء، فطور.. الخ"
-                  className="w-full h-12 px-4 rounded-xl border-2 border-[#00695c] focus:outline-none focus:ring-2 focus:ring-[#00695c]/50 text-right font-medium placeholder-gray-400"
-                  autoFocus
-                />
-              </div>
-
-              <div>
-                <label className="block text-[#00695c] text-xs font-bold mb-1 text-right px-1">المبلغ (جنية سوداني)</label>
-                <input
-                  ref={amountRef}
-                  type="number"
-                  value={formData.amount}
-                  onChange={(e) => setFormData({ ...formData, amount: e.target.value })}
-                  placeholder="0.00"
-                  className="w-full h-12 px-4 rounded-xl border-2 border-[#00695c] focus:outline-none focus:ring-2 focus:ring-[#00695c]/50 text-right font-bold text-lg placeholder-gray-400"
-                />
-              </div>
-
-              <div>
-                <label className="block text-[#00695c] text-xs font-bold mb-1 text-right px-1">طريقة الدفع</label>
-                <div className="relative">
-                  <select
-                    value={formData.payment_method}
-                    onChange={(e) => setFormData({ ...formData, payment_method: e.target.value })}
-                    disabled={isEditing}
-                    className={`w-full h-12 px-4 rounded-xl border-2 border-[#00695c] focus:outline-none focus:ring-2 focus:ring-[#00695c]/50 text-right font-medium appearance-none ${isEditing ? 'bg-gray-100 text-gray-500' : 'bg-white'}`}
-                  >
-                    <option value="بنكك - بنك الخرطوم">بنكك - بنك الخرطوم</option>
-                    <option value="رصيد بنك فيصل">رصيد بنك فيصل</option>
-                    <option value="بنك أم درمان">بنك أم درمان</option>
-                    <option value="نقداً كاش">نقداً كاش</option>
-                  </select>
-                  {!isEditing && (
-                    <div className="absolute left-4 top-1/2 -translate-y-1/2 pointer-events-none text-[#00695c]">
-                      <AlertCircle size={16} className="rotate-180" />
-                    </div>
-                  )}
-                </div>
-              </div>
-
-              <button 
-                type="submit" 
-                disabled={loading}
-                className="w-full bg-[#00695c] text-white h-14 rounded-xl font-bold text-lg shadow-md hover:bg-[#005c4b] flex items-center justify-center gap-2 mt-2"
-              >
-                <Save size={24} />
-                <span>{isEditing ? 'تحديث المصروف' : 'حفظ المصروف'}</span>
-              </button>
-            </form>
-          </div>
-        </div>
+      {showToast &amp;&amp; (
+        <Toast 
+          message={toastMessage} 
+          type={toastType} 
+          onClose={() => setShowToast(false)} 
+        />
       )}
     </div>
   );

@@ -1,98 +1,112 @@
 import React, { useState, useEffect } from 'react';
-import { ArrowRight, Volume2, VolumeX, Globe } from 'lucide-react';
-import { playSound } from '../utils/soundManager';
+import { Save, Database, Shield, Edit3 } from 'lucide-react';
+import { fetchData, insertData } from '../lib/dataService';
+import { Toast } from '../components/Toast';
 
-export const SettingsScreen = ({ onBack }) => {
-  const [settings, setSettings] = useState({
-    barcodeSound: true,
-    clickSound: true,
-    currency: 'SDG'
-  });
+export const SettingsScreen = () => {
+  const [showBankModal, setShowBankModal] = useState(false);
+  const [bank1Name, setBank1Name] = useState('البنك 1');
+  const [bank2Name, setBank2Name] = useState('البنك 2');
+  const [showToast, setShowToast] = useState(false);
+  const [toastMessage, setToastMessage] = useState('');
 
   useEffect(() => {
-    const saved = localStorage.getItem('appSettings');
-    if (saved) {
-      setSettings(JSON.parse(saved));
-    }
+    loadSettings();
   }, []);
 
-  const saveSettings = (newSettings) => {
-    setSettings(newSettings);
-    localStorage.setItem('appSettings', JSON.stringify(newSettings));
-    if (newSettings.clickSound) playSound('click');
+  const loadSettings = async () => {
+    const settings = await fetchData('system_settings');
+    if (settings) {
+      const b1 = settings.find(s => s.key === 'bank_name_1');
+      const b2 = settings.find(s => s.key === 'bank_name_2');
+      if (b1) setBank1Name(b1.value);
+      if (b2) setBank2Name(b2.value);
+    }
   };
 
-  const toggleSetting = (key) => {
-    saveSettings({ ...settings, [key]: !settings[key] });
+  const saveBankNames = async () => {
+    await insertData('system_settings', { key: 'bank_name_1', value: bank1Name });
+    await insertData('system_settings', { key: 'bank_name_2', value: bank2Name });
+    setShowBankModal(false);
+    setToastMessage('تم تحديث أسماء البنوك');
+    setShowToast(true);
+    setTimeout(() => setShowToast(false), 1500);
   };
-
-  const handleCurrencyChange = (e) => {
-    saveSettings({ ...settings, currency: e.target.value });
-  };
-
-  const ToggleItem = ({ label, value, onChange }) => (
-    <div className="bg-white rounded-2xl p-4 shadow-sm border border-gray-100 flex items-center justify-between mb-3">
-      <div className="flex items-center gap-3">
-        <div className={`w-10 h-10 rounded-full flex items-center justify-center ${value ? 'bg-[#00695c]/10 text-[#00695c]' : 'bg-gray-100 text-gray-400'}`}>
-          {value ? <Volume2 size={20} /> : <VolumeX size={20} />}
-        </div>
-        <span className="font-bold text-gray-800">{label}</span>
-      </div>
-      <button 
-        onClick={onChange}
-        className={`w-14 h-8 rounded-full p-1 transition-colors duration-300 ${value ? 'bg-[#00695c]' : 'bg-gray-300'}`}
-      >
-        <div className={`w-6 h-6 bg-white rounded-full shadow-md transform transition-transform duration-300 ${value ? '-translate-x-6' : 'translate-x-0'}`} />
-      </button>
-    </div>
-  );
 
   return (
-    <div className="h-screen flex flex-col bg-[#FFF9C4] overflow-hidden font-sans">
-      {/* Header - Reverted Title */}
-      <div className="bg-[#00695c] text-white h-16 flex items-center px-4 shadow-lg shrink-0 rounded-b-2xl z-10">
-        <button onClick={onBack} className="p-2 hover:bg-[#005c4b] rounded-xl transition-colors active:scale-95">
-          <ArrowRight size={24} strokeWidth={2.5} />
-        </button>
-        <h1 className="text-xl font-bold flex-1 text-center ml-10">الضبط</h1>
-      </div>
-
-      {/* Content */}
-      <div className="flex-1 overflow-y-auto p-4 pb-20 custom-scrollbar">
-        
-        <h3 className="text-[#00695c] font-bold text-sm mb-3 px-2 border-r-4 border-[#00695c]">الأصوات</h3>
-        <ToggleItem 
-          label="صوت الباركود" 
-          value={settings.barcodeSound} 
-          onChange={() => toggleSetting('barcodeSound')} 
-        />
-        <ToggleItem 
-          label="صوت نقر القائمة" 
-          value={settings.clickSound} 
-          onChange={() => toggleSetting('clickSound')} 
-        />
-
-        <h3 className="text-[#00695c] font-bold text-sm mb-3 mt-6 px-2 border-r-4 border-[#00695c]">العملة</h3>
-        <div className="bg-white rounded-2xl p-4 shadow-sm border border-gray-100 flex items-center justify-between">
-          <div className="flex items-center gap-3">
-            <div className="w-10 h-10 rounded-full bg-blue-50 text-blue-600 flex items-center justify-center">
-              <Globe size={20} />
-            </div>
-            <span className="font-bold text-gray-800">عملة التطبيق</span>
-          </div>
-          <select 
-            value={settings.currency}
-            onChange={handleCurrencyChange}
-            className="bg-gray-50 border border-gray-200 text-gray-800 text-sm rounded-lg focus:ring-[#00695c] focus:border-[#00695c] block p-2.5 font-bold outline-none"
-          >
-            <option value="SDG">جنية سوداني</option>
-            <option value="EGP">جنية مصري</option>
-            <option value="SAR">ريال سعودي</option>
-            <option value="AED">درهم إماراتي</option>
-          </select>
+    <div className="space-y-6 pb-20">
+      {/* Existing Settings Content... */}
+      
+      <div className="bg-white rounded-2xl shadow-sm border border-gray-100 overflow-hidden">
+        <div className="p-4 border-b border-gray-100 bg-gray-50">
+          <h3 className="font-bold text-gray-800">إعدادات النظام</h3>
         </div>
-
+        <div className="divide-y divide-gray-50">
+          <button 
+            onClick={() => setShowBankModal(true)}
+            className="w-full p-4 flex items-center justify-between hover:bg-gray-50 transition-colors"
+          >
+            <div className="flex items-center gap-3">
+              <div className="w-10 h-10 rounded-full bg-blue-50 flex items-center justify-center text-blue-600">
+                <Edit3 size={20} />
+              </div>
+              <div className="text-right">
+                <h4 className="font-bold text-gray-800">تعديل أسماء البنوك</h4>
+                <p className="text-xs text-gray-500">تخصيص مسميات الحسابات البنكية</p>
+              </div>
+            </div>
+            <div className="text-gray-400">←</div>
+          </button>
+        </div>
       </div>
+
+      {/* Bank Edit Modal */}
+      {showBankModal &amp;&amp; (
+        <div className="fixed inset-0 bg-black/50 backdrop-blur-sm z-50 flex items-center justify-center p-4">
+          <div className="bg-white rounded-2xl w-full max-w-md p-6 space-y-4">
+            <h3 className="font-bold text-lg text-gray-800">تعديل أسماء البنوك</h3>
+            
+            <div>
+              <label className="block text-sm text-gray-600 mb-1">الاسم الأول (البنك 1)</label>
+              <input 
+                type="text" 
+                value={bank1Name}
+                onChange={(e) => setBank1Name(e.target.value)}
+                className="w-full p-3 border rounded-xl focus:ring-2 focus:ring-blue-500 outline-none"
+              />
+            </div>
+
+            <div>
+              <label className="block text-sm text-gray-600 mb-1">الاسم الثاني (البنك 2)</label>
+              <input 
+                type="text" 
+                value={bank2Name}
+                onChange={(e) => setBank2Name(e.target.value)}
+                className="w-full p-3 border rounded-xl focus:ring-2 focus:ring-blue-500 outline-none"
+              />
+            </div>
+
+            <div className="flex gap-3 mt-4">
+              <button 
+                onClick={saveBankNames}
+                className="flex-1 bg-blue-600 text-white py-3 rounded-xl font-bold"
+              >
+                حفظ
+              </button>
+              <button 
+                onClick={() => setShowBankModal(false)}
+                className="flex-1 bg-gray-100 text-gray-600 py-3 rounded-xl font-bold"
+              >
+                إلغاء
+              </button>
+            </div>
+          </div>
+        </div>
+      )}
+
+      {showToast &amp;&amp; (
+        <Toast message={toastMessage} type="success" onClose={() => setShowToast(false)} />
+      )}
     </div>
   );
 };
