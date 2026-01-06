@@ -72,7 +72,7 @@ export const AddCategoryScreen = () => {
           حفظ
         </button>
       </div>
-      {showToast &amp;&amp; (
+      {showToast && (
         <Toast 
           message={toastMessage} 
           type={toastType} 

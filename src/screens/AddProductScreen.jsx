@@ -106,10 +106,6 @@ export const AddProductScreen = () => {
     setTimeout(() => setShowToast(false), 2000);
   };
 
-  // ... Scanner Logic (ScannerComponent) remains same or imported ...
-  // For brevity, assuming ScannerComponent is working as per previous fixes.
-  // Including simplified Scanner JSX for context if needed, but focusing on requested changes.
-
   return (
     <div className="pb-20 space-y-6">
       <div className="bg-white p-6 rounded-2xl shadow-sm border border-gray-100 space-y-4">
@@ -204,8 +200,8 @@ export const AddProductScreen = () => {
         </button>
       </div>
 
-      {/* Scanner Modal (Placeholder for brevity, assuming existing logic) */}
-      {showScanner &amp;&amp; (
+      {/* Scanner Modal */}
+      {showScanner && (
         <div className="fixed inset-0 bg-black z-50 flex flex-col">
            <div className="p-4 flex justify-between items-center text-white">
              <h3>مسح الباركود</h3>
@@ -215,7 +211,7 @@ export const AddProductScreen = () => {
         </div>
       )}
 
-      {showToast &amp;&amp; (
+      {showToast && (
         <Toast 
           message={toastMessage} 
           type={toastType} 

@@ -61,7 +61,7 @@ export const SettingsScreen = () => {
       </div>
 
       {/* Bank Edit Modal */}
-      {showBankModal &amp;&amp; (
+      {showBankModal && (
         <div className="fixed inset-0 bg-black/50 backdrop-blur-sm z-50 flex items-center justify-center p-4">
           <div className="bg-white rounded-2xl w-full max-w-md p-6 space-y-4">
             <h3 className="font-bold text-lg text-gray-800">تعديل أسماء البنوك</h3>
@@ -104,7 +104,7 @@ export const SettingsScreen = () => {
         </div>
       )}
 
-      {showToast &amp;&amp; (
+      {showToast && (
         <Toast message={toastMessage} type="success" onClose={() => setShowToast(false)} />
       )}
     </div>

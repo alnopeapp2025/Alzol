@@ -97,7 +97,7 @@ export const DebtsScreen = () => {
     const diffTime = due - now;
     const diffDays = Math.ceil(diffTime / (1000 * 60 * 60 * 24));
     
-    if (diffDays &lt; 0) return 'متأخر';
+    if (diffDays < 0) return 'متأخر';
     if (diffDays === 0) return 'اليوم';
     return `${diffDays} يوم`;
   };
@@ -162,7 +162,7 @@ export const DebtsScreen = () => {
         </div>
       </div>
 
-      {showModal &amp;&amp; (
+      {showModal && (
         <div className="fixed inset-0 bg-black/50 backdrop-blur-sm z-50 flex items-center justify-center p-4">
           <div className="bg-white rounded-2xl w-full max-w-md overflow-hidden shadow-2xl animate-in fade-in zoom-in duration-200">
             <div className="p-4 border-b border-gray-100 bg-gray-50 flex justify-between items-center">
@@ -217,7 +217,7 @@ export const DebtsScreen = () => {
         </div>
       )}
 
-      {showToast &amp;&amp; (
+      {showToast && (
         <Toast 
           message={toastMessage} 
           type={toastType} 
