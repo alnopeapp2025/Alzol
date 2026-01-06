@@ -19,13 +19,20 @@ const defaultSettings = {
     'final-reports': true,
     'inventory-reports': true,
     'workers': false,
-    'debts': false
+    'debts': false,
+    'bank-transfer': true,  // New: التحويل بين البنوك
+    'create-backup': true   // New: إنشاء نسخة احتياطية
   }
 };
 
 export const getAdminSettings = () => {
   const saved = localStorage.getItem(ADMIN_CONFIG_KEY);
-  return saved ? JSON.parse(saved) : defaultSettings;
+  // Merge with defaults to ensure new keys exist if local storage has old data
+  const parsed = saved ? JSON.parse(saved) : defaultSettings;
+  return {
+    ...parsed,
+    restrictedFeatures: { ...defaultSettings.restrictedFeatures, ...parsed.restrictedFeatures }
+  };
 };
 
 export const saveAdminSettings = (settings) => {

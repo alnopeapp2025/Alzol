@@ -7,6 +7,7 @@ import {
 import { playSound } from '../utils/soundManager';
 import { supabase } from '../lib/supabaseClient';
 import { fetchData, insertData, deleteData } from '../lib/dataService';
+import { getAdminSettings } from '../lib/adminSettings';
 
 export const SideMenu = ({ isOpen, onClose, onOpenRegistration, onNavigate, onOpenPro, currentUser, onLogout }) => {
   const [lastBackup, setLastBackup] = useState(null);
@@ -145,6 +146,9 @@ export const SideMenu = ({ isOpen, onClose, onOpenRegistration, onNavigate, onOp
     setShowDeleteModal(false);
   };
 
+  // Check restrictions dynamically
+  const isBackupLocked = getAdminSettings().restrictedFeatures['create-backup'] && !currentUser?.is_pro;
+
   const menuGroups = [
     {
       title: 'بيانات العضوية',
@@ -166,11 +170,19 @@ export const SideMenu = ({ isOpen, onClose, onOpenRegistration, onNavigate, onOp
       title: 'بيانات النظام',
       items: [
         { 
-          icon: Save, 
+          icon: isBackupLocked ? Lock : Save, 
           label: backupLoading ? 'جاري النسخ...' : 'إنشاء نسخة احتياطية', 
-          color: '#388e3c', 
-          action: handleCreateBackup,
-          description: lastBackup ? `آخر نسخة كانت في ${lastBackup}` : 'لم يتم إنشاء نسخة احتياطية بعد'
+          color: isBackupLocked ? '#9e9e9e' : '#388e3c', 
+          action: () => {
+             const settings = getAdminSettings();
+             if (settings.restrictedFeatures['create-backup'] && !currentUser?.is_pro) {
+                 if (onOpenPro) onOpenPro();
+                 return;
+             }
+             handleCreateBackup();
+          },
+          description: lastBackup ? `آخر نسخة كانت في ${lastBackup}` : 'لم يتم إنشاء نسخة احتياطية بعد',
+          isPro: isBackupLocked // Visual cue
         },
         { 
           icon: RotateCcw, 

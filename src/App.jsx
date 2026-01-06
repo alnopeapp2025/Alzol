@@ -160,7 +160,7 @@ function App() {
   if (currentScreen === 'admin-dashboard') return <AdminDashboardScreen onBack={() => setCurrentScreen('dashboard')} />;
   if (currentScreen === 'add-category') return <AddCategoryScreen onBack={() => setCurrentScreen('dashboard')} currentUser={currentUser} onOpenRegistration={handleOpenRegistration} />;
   if (currentScreen === 'add-product') return <AddProductScreen onBack={() => setCurrentScreen('dashboard')} currentUser={currentUser} onOpenRegistration={handleOpenRegistration} onOpenPro={() => setIsProOpen(true)} />;
-  if (currentScreen === 'treasury') return <TreasuryScreen onBack={() => setCurrentScreen('dashboard')} />;
+  if (currentScreen === 'treasury') return <TreasuryScreen onBack={() => setCurrentScreen('dashboard')} currentUser={currentUser} onOpenPro={() => setIsProOpen(true)} />;
   if (currentScreen === 'expenses') return <ExpensesScreen onBack={() => setCurrentScreen('dashboard')} />;
   if (currentScreen === 'sales') return <SalesScreen onBack={() => setCurrentScreen('dashboard')} />;
   if (currentScreen === 'purchases') return <PurchasesScreen onBack={() => setCurrentScreen('dashboard')} currentUser={currentUser} />;

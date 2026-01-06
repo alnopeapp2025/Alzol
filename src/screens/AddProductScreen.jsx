@@ -1,7 +1,7 @@
 import React, { useState, useEffect, useCallback, useRef } from 'react';
 import { ArrowRight, Search, Plus, Save, ScanBarcode, X, ArrowDown, Trash2, Settings, UserPlus, Camera } from 'lucide-react';
 import { fetchData, insertData, updateData, deleteData } from '../lib/dataService';
-import { Html5Qrcode } from 'html5-qrcode'; 
+import { Html5Qrcode, Html5QrcodeSupportedFormats } from 'html5-qrcode'; 
 import { Toast } from '../components/Toast';
 import { ConfirmDialog } from '../components/ConfirmDialog';
 import { playSound } from '../utils/soundManager';
@@ -531,13 +531,34 @@ const ScannerComponent = ({ onScanSuccess, onPermissionError, elementId }) => {
       });
 
     const startScanner = () => {
-        const html5QrCode = new Html5Qrcode(elementId);
+        // Configure formats to support
+        const formatsToSupport = [
+            Html5QrcodeSupportedFormats.EAN_13,
+            Html5QrcodeSupportedFormats.EAN_8,
+            Html5QrcodeSupportedFormats.CODE_128,
+            Html5QrcodeSupportedFormats.CODE_39,
+            Html5QrcodeSupportedFormats.UPC_A,
+            Html5QrcodeSupportedFormats.UPC_E,
+            Html5QrcodeSupportedFormats.CODABAR,
+            Html5QrcodeSupportedFormats.ITF,
+            Html5QrcodeSupportedFormats.QR_CODE,
+            Html5QrcodeSupportedFormats.DATA_MATRIX
+        ];
+
+        const html5QrCode = new Html5Qrcode(elementId, { 
+            formatsToSupport: formatsToSupport,
+            experimentalFeatures: {
+                useBarCodeDetectorIfSupported: true
+            },
+            verbose: false
+        });
         scannerRef.current = html5QrCode;
 
         const config = { 
-          fps: 10, 
+          fps: 25, // High FPS for faster scanning
           qrbox: { width: 250, height: 250 },
-          aspectRatio: 1.0
+          aspectRatio: 1.0,
+          focusMode: "continuous"
         };
         
         // Try back camera first

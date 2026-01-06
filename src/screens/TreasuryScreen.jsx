@@ -1,12 +1,12 @@
 import React, { useState, useEffect } from 'react';
-import { ArrowRight, TrendingUp, RefreshCw, Trash2, ArrowLeftRight, X, AlertCircle } from 'lucide-react';
+import { ArrowRight, TrendingUp, RefreshCw, Trash2, ArrowLeftRight, X, AlertCircle, Lock } from 'lucide-react';
 import { fetchData, updateData, insertData } from '../lib/dataService'; 
 import { Toast } from '../components/Toast';
 import { ConfirmDialog } from '../components/ConfirmDialog';
+import { getAdminSettings } from '../lib/adminSettings';
 
-export const TreasuryScreen = ({ onBack }) => {
+export const TreasuryScreen = ({ onBack, currentUser, onOpenPro }) => {
   const [totalTreasury, setTotalTreasury] = useState(0);
-  const [currentUser, setCurrentUser] = useState(null);
   const [loading, setLoading] = useState(false);
   const [toast, setToast] = useState({ show: false, message: '' });
   
@@ -30,15 +30,19 @@ export const TreasuryScreen = ({ onBack }) => {
   ]);
 
   useEffect(() => {
-    const savedUser = localStorage.getItem('app_user');
-    if (savedUser) {
-      const user = JSON.parse(savedUser);
-      setCurrentUser(user);
-      loadData(user.id);
+    // If currentUser is passed via props, use it. Otherwise fallback (though App.jsx should pass it)
+    if (currentUser) {
+      loadData(currentUser.id);
     } else {
-      loadData(null);
+      // Fallback for guest or direct load
+      const savedUser = localStorage.getItem('app_user');
+      if (savedUser) {
+         loadData(JSON.parse(savedUser).id);
+      } else {
+         loadData(null);
+      }
     }
-  }, []);
+  }, [currentUser]);
 
   const loadData = async (userId) => {
     const data = await fetchData('treasury_balances');
@@ -94,6 +98,16 @@ export const TreasuryScreen = ({ onBack }) => {
     }
   };
 
+  const handleTransferClick = () => {
+    const settings = getAdminSettings();
+    if (settings.restrictedFeatures['bank-transfer'] && !currentUser?.is_pro) {
+        if (onOpenPro) onOpenPro();
+        else alert('هذه الميزة تتطلب اشتراك Pro');
+        return;
+    }
+    setShowTransferModal(true);
+  };
+
   const handleTransfer = async (e) => {
     e.preventDefault();
     const amount = Number(transferData.amount);
@@ -147,6 +161,9 @@ export const TreasuryScreen = ({ onBack }) => {
 
     setLoading(false);
   };
+
+  // Check restriction for visual cue
+  const isTransferLocked = getAdminSettings().restrictedFeatures['bank-transfer'] && !currentUser?.is_pro;
 
   return (
     <div className="h-screen flex flex-col bg-[#FFF9C4] overflow-hidden font-sans relative">
@@ -212,8 +229,8 @@ export const TreasuryScreen = ({ onBack }) => {
         {/* Action Buttons */}
         <div className="flex flex-col gap-3 mt-4">
             <button 
-                onClick={() => setShowTransferModal(true)}
-                className="bg-white p-4 rounded-2xl shadow-sm border border-gray-100 flex items-center justify-between group active:scale-[0.98] transition-all"
+                onClick={handleTransferClick}
+                className="bg-white p-4 rounded-2xl shadow-sm border border-gray-100 flex items-center justify-between group active:scale-[0.98] transition-all relative overflow-hidden"
             >
                 <div className="flex items-center gap-4">
                     <div className="w-12 h-12 rounded-xl bg-blue-50 text-blue-600 flex items-center justify-center">
@@ -221,7 +238,10 @@ export const TreasuryScreen = ({ onBack }) => {
                     </div>
                     <span className="font-bold text-gray-800 text-lg">تحويل بين البنوك</span>
                 </div>
-                <ArrowRight size={20} className="text-gray-300 rotate-180" />
+                <div className="flex items-center gap-2">
+                   {isTransferLocked && <Lock size={20} className="text-red-500" />}
+                   <ArrowRight size={20} className="text-gray-300 rotate-180" />
+                </div>
             </button>
 
             <button 

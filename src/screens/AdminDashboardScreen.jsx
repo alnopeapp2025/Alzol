@@ -137,7 +137,9 @@ export const AdminDashboardScreen = ({ onBack }) => {
                 { id: 'workers', label: 'العمال والرواتب' },
                 { id: 'debts', label: 'دفتر الديون' },
                 { id: 'wholesalers', label: 'تجار الجملة' },
-                { id: 'sales', label: 'المبيعات (كاملة)' }
+                { id: 'sales', label: 'المبيعات (كاملة)' },
+                { id: 'bank-transfer', label: 'تحويل بين البنوك' }, // New
+                { id: 'create-backup', label: 'إنشاء نسخة احتياطية' } // New
               ].map((item) => (
                 <div key={item.id} className="flex items-center justify-between p-4 border-b border-gray-100 last:border-0 hover:bg-gray-50">
                   <span className="font-bold text-gray-700">{item.label}</span>
