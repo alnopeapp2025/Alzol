@@ -12,7 +12,6 @@ export const DashboardCard = ({ title, value, icon: Icon, color, children }) => 
       <h3 className="text-gray-500 text-sm font-medium mb-1">{title}</h3>
       <p className="text-2xl font-bold text-gray-800 font-mono">{value}</p>
       
-      {/* Render children (like buttons) directly below the value */}
       {children && (
         <div className="mt-3 w-full flex justify-center">
           {children}
