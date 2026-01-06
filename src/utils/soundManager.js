@@ -10,12 +10,12 @@ export const playSound = (type) => {
   try {
     if (type === 'click') {
       // --- CUSTOM SOUND (sound2.mp3) ---
-      // استخدام BASE_URL لضمان صحة المسار سواء على السيرفر المحلي أو GitHub Pages
+      // التأكد من استخدام الملف الجديد sound2.mp3
       const baseUrl = import.meta.env.BASE_URL.endsWith('/') ? import.meta.env.BASE_URL : import.meta.env.BASE_URL + '/';
       const audioPath = `${baseUrl}sound2.mp3`;
       
       const audio = new Audio(audioPath);
-      audio.volume = 1.0; 
+      audio.volume = 1.0; // أعلى مستوى للصوت
       
       // إعادة تعيين الوقت لضمان التشغيل السريع عند النقر المتتابع
       audio.currentTime = 0;

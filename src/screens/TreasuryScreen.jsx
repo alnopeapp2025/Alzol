@@ -8,7 +8,7 @@ import { getAdminSettings } from '../lib/adminSettings';
 export const TreasuryScreen = ({ onBack, currentUser, onOpenPro }) => {
   const [totalTreasury, setTotalTreasury] = useState(0);
   const [loading, setLoading] = useState(false);
-  const [toast, setToast] = useState({ show: false, message: '' });
+  const [toast, setToast] = useState({ show: false, message: '', type: 'success' });
   
   // Modals State
   const [showZeroConfirm, setShowZeroConfirm] = useState(false);
@@ -21,7 +21,7 @@ export const TreasuryScreen = ({ onBack, currentUser, onOpenPro }) => {
     amount: ''
   });
 
-  // Initial Buttons - Updated Names
+  // Initial Buttons
   const [treasuryData, setTreasuryData] = useState([
     { id: 'bok', name: 'بنكك - بنك الخرطوم', amount: 0, color: '#d32f2f', textColor: 'text-white', dbId: null }, 
     { id: 'fib', name: 'رصيد بنك فيصل', amount: 0, color: '#fbc02d', textColor: 'text-gray-900', dbId: null }, 
@@ -30,11 +30,9 @@ export const TreasuryScreen = ({ onBack, currentUser, onOpenPro }) => {
   ]);
 
   useEffect(() => {
-    // If currentUser is passed via props, use it. Otherwise fallback (though App.jsx should pass it)
     if (currentUser) {
       loadData(currentUser.id);
     } else {
-      // Fallback for guest or direct load
       const savedUser = localStorage.getItem('app_user');
       if (savedUser) {
          loadData(JSON.parse(savedUser).id);
@@ -61,7 +59,6 @@ export const TreasuryScreen = ({ onBack, currentUser, onOpenPro }) => {
         });
       });
 
-      // Calculate Total: Sum of ALL records in DB for this user (Banks + Cash)
       const total = userBalances
         .reduce((sum, item) => sum + Number(item.amount), 0);
       
@@ -74,7 +71,6 @@ export const TreasuryScreen = ({ onBack, currentUser, onOpenPro }) => {
     let errorOccurred = false;
     let isOfflineOp = false;
 
-    // Loop through all banks and set to 0
     for (const bank of treasuryData) {
       if (bank.dbId) {
         const { error, isOffline } = await updateData('treasury_balances', bank.dbId, { amount: 0 });
@@ -87,14 +83,13 @@ export const TreasuryScreen = ({ onBack, currentUser, onOpenPro }) => {
     setShowZeroConfirm(false);
 
     if (!errorOccurred) {
-      // تحديث الواجهة فوراً لتظهر الأصفار
       setTreasuryData(prev => prev.map(bank => ({ ...bank, amount: 0 })));
       setTotalTreasury(0);
       
-      setToast({ show: true, message: isOfflineOp ? 'تم التصفير (وضع عدم الاتصال)' : 'تم تصفير الخزينة بنجاح' });
+      setToast({ show: true, message: isOfflineOp ? 'تم التصفير (وضع عدم الاتصال)' : 'تم تصفير الخزينة بنجاح', type: 'success' });
       loadData(currentUser?.id);
     } else {
-      alert('حدث خطأ أثناء التصفير');
+      setToast({ show: true, message: 'حدث خطأ أثناء التصفير', type: 'error' });
     }
   };
 
@@ -102,7 +97,7 @@ export const TreasuryScreen = ({ onBack, currentUser, onOpenPro }) => {
     const settings = getAdminSettings();
     if (settings.restrictedFeatures['bank-transfer'] && !currentUser?.is_pro) {
         if (onOpenPro) onOpenPro();
-        else alert('هذه الميزة تتطلب اشتراك Pro');
+        else setToast({ show: true, message: 'هذه الميزة تتطلب اشتراك Pro', type: 'error' });
         return;
     }
     setShowTransferModal(true);
@@ -112,33 +107,36 @@ export const TreasuryScreen = ({ onBack, currentUser, onOpenPro }) => {
     e.preventDefault();
     const amount = Number(transferData.amount);
     
+    // 1. التحقق من صحة المبلغ
     if (!amount || amount <= 0) {
-      alert('يرجى إدخال مبلغ صحيح');
+      setToast({ show: true, message: 'يرجى إدخال مبلغ صحيح', type: 'error' });
       return;
     }
     
+    // 2. التحقق من اختلاف البنوك
     if (transferData.fromBank === transferData.toBank) {
-      alert('لا يمكن التحويل لنفس البنك');
+      setToast({ show: true, message: 'لا يمكن التحويل لنفس البنك', type: 'error' });
       return;
     }
 
     const sourceBank = treasuryData.find(b => b.name === transferData.fromBank);
     const destBank = treasuryData.find(b => b.name === transferData.toBank);
 
+    // 3. التحقق من الرصيد
     if (!sourceBank || !sourceBank.dbId || Number(sourceBank.amount) < amount) {
-      alert('الرصيد غير كافٍ أو الحساب غير موجود');
+      setToast({ show: true, message: 'عفواً، الرصيد غير كافٍ لإتمام العملية', type: 'error' });
       return;
     }
 
     setLoading(true);
 
-    // 1. Deduct from Source
+    // تنفيذ الخصم
     const { error: err1, isOffline: off1 } = await updateData('treasury_balances', sourceBank.dbId, {
       amount: Number(sourceBank.amount) - amount
     });
 
     if (!err1) {
-        // 2. Add to Destination
+        // تنفيذ الإضافة
         if (destBank.dbId) {
             await updateData('treasury_balances', destBank.dbId, {
                 amount: Number(destBank.amount) + amount
@@ -151,23 +149,27 @@ export const TreasuryScreen = ({ onBack, currentUser, onOpenPro }) => {
             });
         }
         
-        setToast({ show: true, message: (off1) ? 'تم التحويل (وضع عدم الاتصال)' : 'تم التحويل بنجاح' });
+        setToast({ show: true, message: (off1) ? 'تم التحويل (وضع عدم الاتصال)' : 'تم التحويل بنجاح', type: 'success' });
         setShowTransferModal(false);
         setTransferData({ ...transferData, amount: '' });
         loadData(currentUser?.id);
     } else {
-        alert('فشلت عملية التحويل');
+        setToast({ show: true, message: 'فشلت عملية التحويل', type: 'error' });
     }
 
     setLoading(false);
   };
 
-  // Check restriction for visual cue
   const isTransferLocked = getAdminSettings().restrictedFeatures['bank-transfer'] && !currentUser?.is_pro;
 
   return (
     <div className="h-screen flex flex-col bg-[#FFF9C4] overflow-hidden font-sans relative">
-      <Toast message={toast.message} isVisible={toast.show} onClose={() => setToast({ ...toast, show: false })} />
+      <Toast 
+        message={toast.message} 
+        isVisible={toast.show} 
+        onClose={() => setToast({ ...toast, show: false })} 
+        type={toast.type}
+      />
       
       <ConfirmDialog 
         isOpen={showZeroConfirm}
