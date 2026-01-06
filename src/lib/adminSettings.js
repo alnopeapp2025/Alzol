@@ -1,4 +1,4 @@
-// إدارة إعدادات المدير والقيود الأمنية - نسخة آمنة (Crash-Proof)
+// إدارة إعدادات المدير والقيود الأمنية - نسخة محدثة
 const ADMIN_CONFIG_KEY = 'app_admin_config';
 const ADMIN_SECURITY_KEY = 'app_admin_security';
 
@@ -10,15 +10,27 @@ const defaultSettings = {
     securityAnswer: '2025'
   },
   plans: {
-    free: { maxProducts: 10, maxInvoices: 5, label: 'الباقة المجانية' },
-    basic: { maxProducts: 100, maxInvoices: 50, label: 'الباقة الأساسية' },
-    pro: { maxProducts: 999999, maxInvoices: 999999, label: 'باقة المحترفين' }
+    free: { maxProducts: 10, maxCategories: 5, label: 'باقة الزوار' },
+    basic: { maxProducts: 100, maxCategories: 50, label: 'باقة المسجلين' },
+    pro: { maxProducts: 999999, maxCategories: 999999, label: 'باقة Pro' }
   },
   restrictedFeatures: {
-    'final-reports': true,
-    'inventory-reports': true,
+    // القائمة الشاملة للعناصر
+    'products': false,
+    'categories': false,
+    'sales': false,
+    'purchases': false,
+    'treasury': false,
+    'expenses': false,
+    'customers': false,
+    'wholesalers': false,
     'workers': false,
     'debts': false,
+    'inventory-reports': true,
+    'final-reports': true,
+    'calculator': false,
+    'settings': false,
+    'system-data': false,
     'bank-transfer': true,
     'create-backup': true
   }
@@ -29,7 +41,7 @@ export const getAdminSettings = () => {
     const saved = localStorage.getItem(ADMIN_CONFIG_KEY);
     const parsed = saved ? JSON.parse(saved) : {};
     
-    // دمج ذكي لضمان وجود كافة الحقول حتى لو كانت البيانات المحفوظة قديمة
+    // دمج ذكي لضمان وجود كافة الحقول
     return {
       ...defaultSettings,
       ...parsed,

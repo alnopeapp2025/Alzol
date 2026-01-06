@@ -86,15 +86,23 @@ function App() {
     setCurrentScreen('admin-dashboard');
   };
 
-  // Helper to map titles to keys
+  // Helper to map titles to keys for locking
   function getFeatureKey(title) {
     const map = {
+      'المنتجات': 'products',
+      'الأصناف': 'categories',
+      'المبيعات': 'sales',
+      'المشتريات': 'purchases',
+      'الخزينة': 'treasury',
+      'المصروفات': 'expenses',
+      'العملاء': 'customers',
+      'تجار الجملة': 'wholesalers',
       'التقارير النهائية': 'final-reports',
       'تقارير المخزن': 'inventory-reports',
+      'الآلة الحاسبة': 'calculator',
       'عمال ورواتب': 'workers',
       'الديون': 'debts',
-      'تجار الجملة': 'wholesalers',
-      'المبيعات': 'sales'
+      'الإعدادات': 'settings'
     };
     return map[title] || '';
   }

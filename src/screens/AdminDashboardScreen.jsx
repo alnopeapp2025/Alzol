@@ -1,5 +1,5 @@
-import React, { useState, useEffect } from 'react';
-import { ArrowRight, Save, Shield, Database, Layout, Lock, Users, Activity } from 'lucide-react';
+import React, { useState } from 'react';
+import { ArrowRight, Save, Shield, Database, Layout, Lock, Activity } from 'lucide-react';
 import { getAdminSettings, saveAdminSettings } from '../lib/adminSettings';
 import { Toast } from '../components/Toast';
 
@@ -106,11 +106,11 @@ export const AdminDashboardScreen = ({ onBack }) => {
                     />
                   </div>
                   <div>
-                    <label className="block text-gray-500 text-xs font-bold mb-1">الحد الأقصى للفواتير</label>
+                    <label className="block text-gray-500 text-xs font-bold mb-1">الحد الأقصى للأصناف</label>
                     <input
                       type="number"
-                      value={plan.maxInvoices}
-                      onChange={(e) => handlePlanChange(key, 'maxInvoices', e.target.value)}
+                      value={plan.maxCategories || plan.maxInvoices} 
+                      onChange={(e) => handlePlanChange(key, 'maxCategories', e.target.value)}
                       className="w-full h-10 px-3 rounded-lg border border-gray-300 focus:border-red-500 focus:outline-none text-center font-bold dir-ltr"
                     />
                   </div>
@@ -126,20 +126,29 @@ export const AdminDashboardScreen = ({ onBack }) => {
             <div className="bg-orange-50 border border-orange-200 rounded-xl p-4 flex items-start gap-3">
               <Layout className="text-orange-600 shrink-0 mt-1" size={20} />
               <p className="text-orange-800 text-sm font-medium">
-                حدد العناصر التي تتطلب اشتراكاً (Pro). عند تفعيل القفل، لن تظهر هذه العناصر للمستخدمين في الباقة المجانية.
+                حدد العناصر التي تتطلب اشتراكاً (Pro). عند تفعيل القفل، لن تظهر هذه العناصر للمستخدمين في باقة الزوار أو المسجلين (حسب الإعدادات).
               </p>
             </div>
 
             <div className="bg-white rounded-2xl shadow-sm border border-gray-200 overflow-hidden">
               {[
-                { id: 'final-reports', label: 'التقارير النهائية' },
-                { id: 'inventory-reports', label: 'تقارير المخزن' },
-                { id: 'workers', label: 'العمال والرواتب' },
-                { id: 'debts', label: 'دفتر الديون' },
+                { id: 'products', label: 'المنتجات' },
+                { id: 'categories', label: 'الأصناف' },
+                { id: 'sales', label: 'المبيعات' },
+                { id: 'purchases', label: 'المشتريات' },
+                { id: 'treasury', label: 'الخزينة' },
+                { id: 'expenses', label: 'المصروفات' },
+                { id: 'customers', label: 'العملاء' },
                 { id: 'wholesalers', label: 'تجار الجملة' },
-                { id: 'sales', label: 'المبيعات (كاملة)' },
-                { id: 'bank-transfer', label: 'تحويل بين البنوك' }, // New
-                { id: 'create-backup', label: 'إنشاء نسخة احتياطية' } // New
+                { id: 'workers', label: 'العمال والرواتب' },
+                { id: 'debts', label: 'الديون' },
+                { id: 'inventory-reports', label: 'تقارير المخزن' },
+                { id: 'final-reports', label: 'التقارير النهائية' },
+                { id: 'calculator', label: 'الآلة الحاسبة' },
+                { id: 'settings', label: 'الإعدادات' },
+                { id: 'system-data', label: 'إدارة البيانات' },
+                { id: 'bank-transfer', label: 'تحويل بين البنوك' },
+                { id: 'create-backup', label: 'إنشاء نسخة احتياطية' }
               ].map((item) => (
                 <div key={item.id} className="flex items-center justify-between p-4 border-b border-gray-100 last:border-0 hover:bg-gray-50">
                   <span className="font-bold text-gray-700">{item.label}</span>

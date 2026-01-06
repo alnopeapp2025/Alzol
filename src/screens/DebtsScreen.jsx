@@ -1,5 +1,5 @@
 import React, { useState, useEffect, useRef } from 'react';
-import { ArrowRight, Plus, CreditCard, Trash2, X, Save } from 'lucide-react';
+import { ArrowRight, Plus, CreditCard, Trash2, X, Save, Calendar, Clock } from 'lucide-react';
 import { fetchData, insertData, deleteData } from '../lib/dataService'; 
 import { Toast } from '../components/Toast';
 import { ConfirmDialog } from '../components/ConfirmDialog';
@@ -8,21 +8,29 @@ export const DebtsScreen = ({ onBack, currentUser }) => {
   const [debts, setDebts] = useState([]);
   const [showModal, setShowModal] = useState(false);
   const [loading, setLoading] = useState(false);
-  const [toast, setToast] = useState({ show: false, message: '' });
+  const [toast, setToast] = useState({ show: false, message: '', type: 'success' });
   const [deleteDialog, setDeleteDialog] = useState({ show: false, id: null });
 
   const [formData, setFormData] = useState({
     name: '',
     amount: '',
-    type: 'le' // 'le' (لنا) or '3le' (علينا)
+    type: 'le', // 'le' (لنا) or '3le' (علينا)
+    due_date: '' // تاريخ السداد
   });
 
   // Refs for focus
   const nameRef = useRef(null);
   const amountRef = useRef(null);
+  const dateRef = useRef(null);
 
   useEffect(() => {
     loadDebts();
+    
+    // Timer to update countdowns every second
+    const timer = setInterval(() => {
+      setDebts(prev => [...prev]); // Force re-render
+    }, 1000);
+    return () => clearInterval(timer);
   }, [currentUser]);
 
   const loadDebts = async () => {
@@ -38,36 +46,42 @@ export const DebtsScreen = ({ onBack, currentUser }) => {
   const handleSave = async (e) => {
     e.preventDefault();
     
-    // 1. Validation & Focus
+    // 1. Validation & Focus (Custom Toast instead of Alert)
     if (!formData.name) {
-      alert('يرجى إكمال جميع الحقول المطلوبة');
+      setToast({ show: true, message: 'يرجى إكمال جميع الحقول المطلوبة', type: 'error' });
       if (nameRef.current) nameRef.current.focus();
       return;
     }
     if (!formData.amount) {
-      alert('يرجى إكمال جميع الحقول المطلوبة');
+      setToast({ show: true, message: 'يرجى إكمال جميع الحقول المطلوبة', type: 'error' });
       if (amountRef.current) amountRef.current.focus();
+      return;
+    }
+    if (!formData.due_date) {
+      setToast({ show: true, message: 'يرجى إكمال جميع الحقول المطلوبة', type: 'error' });
+      if (dateRef.current) dateRef.current.focus();
       return;
     }
 
     setLoading(true);
     const userId = currentUser ? currentUser.id : null;
     
-    const { error, isOffline } = await insertData('debts', {
+    const { data, error, isOffline } = await insertData('debts', {
       name: formData.name,
       amount: formData.amount,
       type: formData.type,
+      due_date: formData.due_date,
       user_id: userId
     });
 
     setLoading(false);
     if (!error) {
-      setToast({ show: true, message: isOffline ? 'تم الحفظ (وضع عدم الاتصال)' : 'تمت إضافة الدين بنجاح' });
+      setToast({ show: true, message: isOffline ? 'تم الحفظ (وضع عدم الاتصال)' : 'تمت إضافة الدين بنجاح', type: 'success' });
       setShowModal(false);
-      setFormData({ name: '', amount: '', type: 'le' });
-      loadDebts();
+      setFormData({ name: '', amount: '', type: 'le', due_date: '' });
+      loadDebts(); // Refresh list immediately
     } else {
-      alert('حدث خطأ أثناء الإضافة');
+      setToast({ show: true, message: 'حدث خطأ أثناء الإضافة', type: 'error' });
     }
   };
 
@@ -75,15 +89,32 @@ export const DebtsScreen = ({ onBack, currentUser }) => {
     if (!deleteDialog.id) return;
     const { error, isOffline } = await deleteData('debts', deleteDialog.id);
     if (!error) {
-      setToast({ show: true, message: isOffline ? 'تم الحذف (وضع عدم الاتصال)' : 'تم الحذف بنجاح' });
+      setToast({ show: true, message: isOffline ? 'تم الحذف (وضع عدم الاتصال)' : 'تم الحذف بنجاح', type: 'success' });
       setDebts(debts.filter(d => d.id !== deleteDialog.id));
     }
     setDeleteDialog({ show: false, id: null });
   };
 
+  // Countdown Logic
+  const calculateTimeRemaining = (dueDateStr) => {
+    if (!dueDateStr) return null;
+    const due = new Date(dueDateStr);
+    const now = new Date();
+    const diff = due - now;
+
+    if (diff <= 0) return "مستحق الآن";
+
+    const days = Math.floor(diff / (1000 * 60 * 60 * 24));
+    const hours = Math.floor((diff % (1000 * 60 * 60 * 24)) / (1000 * 60 * 60));
+    const minutes = Math.floor((diff % (1000 * 60 * 60)) / (1000 * 60));
+    const seconds = Math.floor((diff % (1000 * 60)) / 1000);
+
+    return `${days}ي ${hours}س ${minutes}د ${seconds}ث`;
+  };
+
   return (
     <div className="h-screen flex flex-col bg-[#FFF9C4] overflow-hidden font-sans relative">
-      <Toast message={toast.message} isVisible={toast.show} onClose={() => setToast({ ...toast, show: false })} />
+      <Toast message={toast.message} isVisible={toast.show} onClose={() => setToast({ ...toast, show: false })} type={toast.type} />
       <ConfirmDialog 
         isOpen={deleteDialog.show}
         title="حذف السجل"
@@ -107,7 +138,7 @@ export const DebtsScreen = ({ onBack, currentUser }) => {
         ) : (
           <div className="flex flex-col gap-3">
             {debts.map((item) => (
-              <div key={item.id} className="bg-white rounded-xl p-3 shadow-sm border border-gray-100 flex items-center justify-between relative group">
+              <div key={item.id} className="bg-white rounded-xl p-3 shadow-sm border border-gray-100 relative group">
                  <button 
                   onClick={() => setDeleteDialog({ show: true, id: item.id })}
                   className="absolute top-3 left-3 text-gray-300 hover:text-red-500 transition-colors"
@@ -115,20 +146,41 @@ export const DebtsScreen = ({ onBack, currentUser }) => {
                   <Trash2 size={18} />
                 </button>
 
-                <div className="flex items-center gap-3">
-                  <div className={`w-12 h-12 rounded-lg flex items-center justify-center text-white font-bold text-lg ${item.type === 'le' ? 'bg-green-600' : 'bg-red-600'}`}>
-                    {item.type === 'le' ? 'لنا' : 'علينا'}
+                <div className="flex items-center justify-between mb-2">
+                  <div className="flex items-center gap-3">
+                    <div className={`w-12 h-12 rounded-lg flex items-center justify-center text-white font-bold text-lg ${item.type === 'le' ? 'bg-green-600' : 'bg-red-600'}`}>
+                      {item.type === 'le' ? 'لنا' : 'علينا'}
+                    </div>
+                    <div>
+                      <h3 className="font-bold text-gray-800 text-lg">{item.name}</h3>
+                      {item.due_date && (
+                        <div className="flex items-center gap-1 text-[10px] text-gray-500 font-bold mt-1">
+                          <Calendar size={12} />
+                          <span className="dir-ltr">{new Date(item.due_date).toLocaleDateString('en-GB')}</span>
+                        </div>
+                      )}
+                    </div>
                   </div>
-                  <div>
-                    <h3 className="font-bold text-gray-800 text-lg">{item.name}</h3>
+                  <div className="text-left pl-8">
+                    <span className={`font-black text-lg dir-ltr ${item.type === 'le' ? 'text-green-700' : 'text-red-700'}`}>
+                      {Number(item.amount).toLocaleString()}
+                    </span>
+                    <span className="text-[10px] text-gray-400 block font-bold text-center">ج.س</span>
                   </div>
                 </div>
-                <div className="text-left pl-8">
-                  <span className={`font-black text-lg dir-ltr ${item.type === 'le' ? 'text-green-700' : 'text-red-700'}`}>
-                    {Number(item.amount).toLocaleString()}
-                  </span>
-                  <span className="text-[10px] text-gray-400 block font-bold text-center">ج.س</span>
-                </div>
+
+                {/* Countdown Timer */}
+                {item.due_date && (
+                  <div className="bg-gray-50 rounded-lg p-2 flex items-center justify-between border border-gray-100">
+                    <div className="flex items-center gap-1 text-xs text-gray-500 font-bold">
+                      <Clock size={14} className="text-[#00695c]" />
+                      <span>متبقي:</span>
+                    </div>
+                    <span className="font-mono font-bold text-[#00695c] text-sm dir-ltr">
+                      {calculateTimeRemaining(item.due_date)}
+                    </span>
+                  </div>
+                )}
               </div>
             ))}
           </div>
@@ -176,6 +228,17 @@ export const DebtsScreen = ({ onBack, currentUser }) => {
                   onChange={(e) => setFormData({ ...formData, amount: e.target.value })}
                   className="w-full h-12 px-4 rounded-xl border-2 border-[#c62828] focus:outline-none focus:ring-2 focus:ring-[#c62828]/50 text-right font-bold text-lg"
                   placeholder="0.00"
+                />
+              </div>
+              <div>
+                <label className="block text-[#c62828] text-xs font-bold mb-1 text-right px-1">تاريخ السداد</label>
+                <input
+                  ref={dateRef}
+                  type="date"
+                  min={new Date().toISOString().split('T')[0]} // Min date is today
+                  value={formData.due_date}
+                  onChange={(e) => setFormData({ ...formData, due_date: e.target.value })}
+                  className="w-full h-12 px-4 rounded-xl border-2 border-[#c62828] focus:outline-none focus:ring-2 focus:ring-[#c62828]/50 text-right font-medium bg-white"
                 />
               </div>
               <div>
