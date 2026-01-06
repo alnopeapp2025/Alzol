@@ -12,7 +12,9 @@ export const playSound = (type) => {
       // --- CUSTOM SOUND (sound2.mp3) ---
       // التأكد من استخدام الملف الجديد sound2.mp3
       const baseUrl = import.meta.env.BASE_URL.endsWith('/') ? import.meta.env.BASE_URL : import.meta.env.BASE_URL + '/';
-      const audioPath = `${baseUrl}sound2.mp3`;
+      
+      // Cache Busting: Adding a version query param to force browser to re-download if changed
+      const audioPath = `${baseUrl}sound2.mp3?v=3.0`; 
       
       const audio = new Audio(audioPath);
       audio.volume = 1.0; // أعلى مستوى للصوت
