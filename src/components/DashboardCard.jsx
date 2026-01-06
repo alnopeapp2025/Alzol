@@ -1,37 +1,44 @@
 import React from 'react';
 
 export const DashboardCard = ({ title, value, icon: Icon, color, onClick, children }) => {
-  // التحقق مما إذا كان اللون بنظام Hex (يبدأ بـ #) لمعالجته بشكل صحيح
-  const isHex = color?.startsWith('#');
-  
   return (
     <div 
       onClick={onClick}
-      className="bg-white p-4 rounded-2xl shadow-sm border border-gray-100 flex flex-col items-center justify-center text-center h-full relative overflow-hidden group hover:shadow-md transition-all duration-300 cursor-pointer min-h-[130px]"
+      className="bg-white p-4 rounded-2xl shadow-sm border border-gray-100 flex flex-col items-center justify-center text-center h-full relative overflow-hidden group hover:shadow-md transition-all duration-300 cursor-pointer min-h-[120px]"
     >
       {/* الخط العلوي الملون */}
       <div 
-        className={`absolute top-0 left-0 w-full h-1 ${!isHex ? (color || 'bg-blue-500') : ''}`} 
-        style={isHex ? { backgroundColor: color } : {}}
+        className="absolute top-0 left-0 w-full h-1" 
+        style={{ backgroundColor: color || '#00695c' }}
       />
       
-      {/* حاوية الأيقونة مع خلفية شفافة بنفس لون القسم */}
+      {/* حاوية الأيقونة */}
       <div 
-        className={`p-3 rounded-full mb-3 ${!isHex ? (color ? color.replace('bg-', 'bg-opacity-10 text-') : 'bg-blue-50 text-blue-600') : ''}`}
-        style={isHex ? { backgroundColor: `${color}15`, color: color } : {}}
+        className="p-3 rounded-full mb-3 transition-transform group-hover:scale-110 duration-300"
+        style={{ 
+          backgroundColor: color ? `${color}15` : '#e0f2f1', 
+          color: color || '#00695c' 
+        }}
       >
         {Icon && <Icon size={28} strokeWidth={2} />}
       </div>
       
       {/* العنوان */}
-      <h3 className="text-gray-600 text-sm font-bold mb-1">{title}</h3>
+      <h3 className="text-gray-700 text-sm font-bold mb-1">{title}</h3>
       
       {/* القيمة (إن وجدت) */}
-      {value && <p className="text-2xl font-bold text-gray-800 font-mono mt-1">{value}</p>}
+      {value && (
+        <p className="text-xl font-bold text-gray-800 font-mono mt-1 dir-ltr">
+          {value}
+        </p>
+      )}
       
-      {/* محتوى إضافي (مثل الأزرار الصغيرة) */}
+      {/* أزرار إضافية (مثل +) */}
       {children && (
-        <div className="mt-3 w-full flex justify-center">
+        <div 
+          className="mt-2 w-full flex justify-center" 
+          onClick={(e) => e.stopPropagation()}
+        >
           {children}
         </div>
       )}
