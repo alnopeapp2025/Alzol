@@ -1,142 +1,13 @@
-import React, { useState, useEffect } from 'react';
+import React, { useState } from 'react';
 import { motion, AnimatePresence } from 'framer-motion';
 import { 
   Save, RotateCcw, Trash2, Settings, 
-  Star, Share2, Lock, Phone, X, LogIn, Crown, LogOut, Mail
+  Star, Share2, Lock, Phone, X, LogIn, LogOut, Mail
 } from 'lucide-react';
 import { playSound } from '../utils/soundManager';
-import { supabase } from '../lib/supabaseClient';
-import { fetchData, insertData, deleteData } from '../lib/dataService';
-import { getAdminSettings } from '../lib/adminSettings';
 
-export const SideMenu = ({ isOpen, onClose, onOpenRegistration, onNavigate, onOpenPro, currentUser, onLogout }) => {
-  const [lastBackup, setLastBackup] = useState(null);
-  const [backupLoading, setBackupLoading] = useState(false);
-  const [restoreLoading, setRestoreLoading] = useState(false);
+export const SideMenu = ({ isOpen, onClose, onOpenRegistration, onNavigate, currentUser, onLogout }) => {
   const [showDeleteModal, setShowDeleteModal] = useState(false);
-
-  useEffect(() => {
-    if (isOpen && currentUser) {
-      fetchLastBackup();
-    }
-  }, [isOpen, currentUser]);
-
-  const fetchLastBackup = async () => {
-    if (!currentUser) return;
-    try {
-      const { data, error } = await supabase
-        .from('backups')
-        .select('created_at')
-        .eq('user_id', currentUser.id)
-        .order('created_at', { ascending: false })
-        .limit(1);
-
-      if (data && data.length > 0) {
-        const date = new Date(data[0].created_at);
-        const day = date.toLocaleDateString('ar-EG', { year: 'numeric', month: 'numeric', day: 'numeric' });
-        const time = date.toLocaleTimeString('ar-EG', { hour: '2-digit', minute: '2-digit' });
-        setLastBackup(`${day} ${time}`);
-      }
-    } catch (e) {
-      console.error("Error fetching backup", e);
-    }
-  };
-
-  const handleCreateBackup = async () => {
-    if (!currentUser) {
-      alert('يرجى تسجيل الدخول أولاً لإنشاء نسخة احتياطية');
-      return;
-    }
-    setBackupLoading(true);
-    
-    try {
-      const tables = ['products', 'categories', 'sales', 'expenses', 'treasury_balances', 'workers', 'wholesalers', 'customers', 'purchases', 'debts'];
-      const backupPayload = { meta: { username: currentUser.username, date: new Date().toISOString() } };
-
-      for (const table of tables) {
-        const data = await fetchData(table);
-        backupPayload[table] = data ? data.filter(item => item.user_id == currentUser.id) : [];
-      }
-
-      const { error } = await supabase.from('backups').insert([{
-        user_id: currentUser.id,
-        backup_data: backupPayload
-      }]);
-
-      if (!error) {
-        await fetchLastBackup();
-        alert('✅ تم إنشاء النسخة الاحتياطية وحفظها في السحابة بنجاح');
-      } else {
-        console.error("Backup Error:", error);
-        alert('❌ حدث خطأ أثناء حفظ النسخة. تأكد من الاتصال بالإنترنت.');
-      }
-    } catch (e) {
-      console.error("Backup Exception:", e);
-      alert('فشلت العملية. يرجى المحاولة لاحقاً.');
-    } finally {
-      setBackupLoading(false);
-    }
-  };
-
-  const handleRestoreBackup = async () => {
-    if (!currentUser) {
-      alert('يرجى تسجيل الدخول أولاً');
-      return;
-    }
-    setRestoreLoading(true);
-
-    try {
-      // 1. Fetch latest backup
-      const { data, error } = await supabase
-        .from('backups')
-        .select('backup_data')
-        .eq('user_id', currentUser.id)
-        .order('created_at', { ascending: false })
-        .limit(1)
-        .single();
-
-      if (!data || error) {
-        alert('لا توجد نسخة متوفرة');
-        setRestoreLoading(false);
-        return;
-      }
-
-      const backup = data.backup_data;
-      const tables = ['products', 'categories', 'sales', 'expenses', 'treasury_balances', 'workers', 'wholesalers', 'customers', 'purchases', 'debts'];
-
-      // 2. Restore Data (Delete current -> Insert backup)
-      // Note: This is a destructive operation for current data, usually we warn user.
-      // Assuming user knows what they are doing based on button click.
-      
-      for (const table of tables) {
-        if (backup[table] && Array.isArray(backup[table])) {
-          // Delete existing
-          await supabase.from(table).delete().eq('user_id', currentUser.id);
-          
-          // Insert backup data (if any)
-          if (backup[table].length > 0) {
-             // Remove IDs to let DB generate new ones or keep them?
-             // Keeping IDs might cause conflicts if sequence isn't updated.
-             // Safer to remove ID and let DB handle it, OR use upsert.
-             // For simplicity and exact restore, we try to insert.
-             const records = backup[table].map(({ id, ...rest }) => ({ ...rest, user_id: currentUser.id }));
-             if (records.length > 0) {
-                await supabase.from(table).insert(records);
-             }
-          }
-        }
-      }
-
-      alert('✅ تم استعادة النسخة الاحتياطية بنجاح');
-      window.location.reload(); // Reload to reflect changes
-
-    } catch (e) {
-      console.error("Restore Exception:", e);
-      alert('فشلت عملية الاستعادة.');
-    } finally {
-      setRestoreLoading(false);
-    }
-  };
 
   const handleDeleteRequest = () => {
     const email = "Alnope2025delete@gmail.com";
@@ -145,9 +16,6 @@ export const SideMenu = ({ isOpen, onClose, onOpenRegistration, onNavigate, onOp
     window.location.href = `mailto:${email}?subject=${subject}&body=${body}`;
     setShowDeleteModal(false);
   };
-
-  // Check restrictions dynamically
-  const isBackupLocked = getAdminSettings().restrictedFeatures['create-backup'] && !currentUser?.is_pro;
 
   const menuGroups = [
     {
@@ -170,29 +38,8 @@ export const SideMenu = ({ isOpen, onClose, onOpenRegistration, onNavigate, onOp
       title: 'بيانات النظام',
       items: [
         { 
-          icon: isBackupLocked ? Lock : Save, 
-          label: backupLoading ? 'جاري النسخ...' : 'إنشاء نسخة احتياطية', 
-          color: isBackupLocked ? '#9e9e9e' : '#388e3c', 
-          action: () => {
-             const settings = getAdminSettings();
-             if (settings.restrictedFeatures['create-backup'] && !currentUser?.is_pro) {
-                 if (onOpenPro) onOpenPro();
-                 return;
-             }
-             handleCreateBackup();
-          },
-          description: lastBackup ? `آخر نسخة كانت في ${lastBackup}` : 'لم يتم إنشاء نسخة احتياطية بعد',
-          isPro: isBackupLocked // Visual cue
-        },
-        { 
-          icon: RotateCcw, 
-          label: restoreLoading ? 'جاري الاستعادة...' : 'استعادة نسخة احتياطية', 
-          color: '#f57c00', 
-          action: handleRestoreBackup 
-        }, 
-        { 
           icon: Trash2, 
-          label: 'حذف البيانات', 
+          label: 'إدارة البيانات (الحذف)', 
           color: '#d32f2f',
           action: () => { onClose(); onNavigate('system-data'); }
         }
@@ -202,7 +49,6 @@ export const SideMenu = ({ isOpen, onClose, onOpenRegistration, onNavigate, onOp
       title: 'الإعدادات',
       items: [
         { icon: Settings, label: 'إعدادات النظام', color: '#616161', action: () => { onClose(); onNavigate('settings'); } },
-        { icon: Crown, label: 'اشتراك pro', color: '#FFD700', isPro: true, action: () => { onClose(); if (onOpenPro) onOpenPro(); } }
       ]
     },
     {
@@ -241,14 +87,13 @@ export const SideMenu = ({ isOpen, onClose, onOpenRegistration, onNavigate, onOp
                   <h3 className="text-[#00695c] font-bold text-sm mb-3 px-2 border-r-4 border-[#00695c]">{group.title}</h3>
                   <div className="flex flex-col gap-1">
                     {group.items.map((item, itemIdx) => (
-                      <button key={itemIdx} onClick={() => { playSound('click'); item.action && item.action(); }} className={`flex flex-col p-3 hover:bg-gray-50 rounded-xl transition-colors text-right w-full group active:bg-gray-100 ${item.isPro ? 'animate-pulse' : ''}`}>
+                      <button key={itemIdx} onClick={() => { playSound('click'); item.action && item.action(); }} className="flex flex-col p-3 hover:bg-gray-50 rounded-xl transition-colors text-right w-full group active:bg-gray-100">
                         <div className="flex items-center gap-3 w-full">
                           <div className="p-2 rounded-lg bg-gray-50 group-hover:bg-white shadow-sm transition-colors border border-gray-100" style={{ color: item.color }}>
                             <item.icon size={20} strokeWidth={2} />
                           </div>
-                          <span className={`text-gray-700 font-medium text-sm flex-1 ${item.isPro ? 'text-yellow-600 font-bold' : ''}`}>{item.label}</span>
+                          <span className="text-gray-700 font-medium text-sm flex-1">{item.label}</span>
                         </div>
-                        {item.description && <span className="text-[10px] text-gray-400 mr-12 mt-1 font-medium block">{item.description}</span>}
                       </button>
                     ))}
                   </div>

@@ -1,30 +1,12 @@
-import React, { useState, useRef } from 'react';
+import React, { useState } from 'react';
 import { Menu, Edit, LogOut, LogIn } from 'lucide-react';
 import { SideMenu } from './SideMenu';
 import { playSound } from '../utils/soundManager';
 import { motion, AnimatePresence } from 'framer-motion';
 
-export const TopBar = ({ onOpenRegistration, onNavigate, currentUser, onLogout, onOpenPro, onOpenAdmin }) => {
+export const TopBar = ({ onOpenRegistration, onNavigate, currentUser, onLogout }) => {
   const [isMenuOpen, setIsMenuOpen] = useState(false);
   const [isUserMenuOpen, setIsUserMenuOpen] = useState(false);
-  
-  // Long Press Logic
-  const pressTimer = useRef(null);
-
-  const handlePressStart = () => {
-    pressTimer.current = setTimeout(() => {
-      if (onOpenAdmin) {
-        playSound('click'); // Feedback
-        onOpenAdmin();
-      }
-    }, 2000); // 2 seconds long press
-  };
-
-  const handlePressEnd = () => {
-    if (pressTimer.current) {
-      clearTimeout(pressTimer.current);
-    }
-  };
 
   const handleMenuClick = () => {
     playSound('click');
@@ -64,15 +46,8 @@ export const TopBar = ({ onOpenRegistration, onNavigate, currentUser, onLogout, 
           <Menu size={28} strokeWidth={2} />
         </button>
 
-        {/* Center - Title with Hidden Trigger */}
-        <h1 
-          className="text-xl font-bold flex-1 text-center mx-2 truncate drop-shadow-md select-none cursor-default active:opacity-80 transition-opacity"
-          onTouchStart={handlePressStart}
-          onTouchEnd={handlePressEnd}
-          onMouseDown={handlePressStart}
-          onMouseUp={handlePressEnd}
-          onMouseLeave={handlePressEnd}
-        >
+        {/* Center - Title */}
+        <h1 className="text-xl font-bold flex-1 text-center mx-2 truncate drop-shadow-md">
           مخزنك
         </h1>
 
@@ -143,7 +118,6 @@ export const TopBar = ({ onOpenRegistration, onNavigate, currentUser, onLogout, 
         onClose={() => setIsMenuOpen(false)} 
         onOpenRegistration={onOpenRegistration}
         onNavigate={onNavigate}
-        onOpenPro={onOpenPro}
         currentUser={currentUser}
         onLogout={onLogout}
       />

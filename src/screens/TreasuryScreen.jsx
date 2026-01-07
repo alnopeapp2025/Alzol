@@ -1,25 +1,14 @@
 import React, { useState, useEffect } from 'react';
-import { ArrowRight, TrendingUp, RefreshCw, Trash2, ArrowLeftRight, X, AlertCircle, Lock } from 'lucide-react';
-import { fetchData, updateData, insertData } from '../lib/dataService'; 
+import { ArrowRight, TrendingUp, Trash2 } from 'lucide-react';
+import { fetchData, updateData } from '../lib/dataService'; 
 import { Toast } from '../components/Toast';
 import { ConfirmDialog } from '../components/ConfirmDialog';
-import { getAdminSettings } from '../lib/adminSettings';
 
-export const TreasuryScreen = ({ onBack, currentUser, onOpenPro }) => {
+export const TreasuryScreen = ({ onBack, currentUser }) => {
   const [totalTreasury, setTotalTreasury] = useState(0);
   const [loading, setLoading] = useState(false);
   const [toast, setToast] = useState({ show: false, message: '', type: 'success' });
-  
-  // Modals State
   const [showZeroConfirm, setShowZeroConfirm] = useState(false);
-  const [showTransferModal, setShowTransferModal] = useState(false);
-  
-  // Transfer Form State
-  const [transferData, setTransferData] = useState({
-    fromBank: 'بنكك - بنك الخرطوم',
-    toBank: 'رصيد بنك فيصل',
-    amount: ''
-  });
 
   // Initial Buttons
   const [treasuryData, setTreasuryData] = useState([
@@ -93,75 +82,6 @@ export const TreasuryScreen = ({ onBack, currentUser, onOpenPro }) => {
     }
   };
 
-  const handleTransferClick = () => {
-    const settings = getAdminSettings();
-    if (settings.restrictedFeatures['bank-transfer'] && !currentUser?.is_pro) {
-        if (onOpenPro) onOpenPro();
-        else setToast({ show: true, message: 'هذه الميزة تتطلب اشتراك Pro', type: 'error' });
-        return;
-    }
-    setShowTransferModal(true);
-  };
-
-  const handleTransfer = async (e) => {
-    e.preventDefault();
-    const amount = Number(transferData.amount);
-    
-    // 1. التحقق من صحة المبلغ
-    if (!amount || amount <= 0) {
-      setToast({ show: true, message: 'يرجى إدخال مبلغ صحيح', type: 'error' });
-      return;
-    }
-    
-    // 2. التحقق من اختلاف البنوك
-    if (transferData.fromBank === transferData.toBank) {
-      setToast({ show: true, message: 'لا يمكن التحويل لنفس البنك', type: 'error' });
-      return;
-    }
-
-    const sourceBank = treasuryData.find(b => b.name === transferData.fromBank);
-    const destBank = treasuryData.find(b => b.name === transferData.toBank);
-
-    // 3. التحقق من الرصيد
-    if (!sourceBank || !sourceBank.dbId || Number(sourceBank.amount) < amount) {
-      setToast({ show: true, message: 'عفواً، الرصيد غير كافٍ لإتمام العملية', type: 'error' });
-      return;
-    }
-
-    setLoading(true);
-
-    // تنفيذ الخصم
-    const { error: err1, isOffline: off1 } = await updateData('treasury_balances', sourceBank.dbId, {
-      amount: Number(sourceBank.amount) - amount
-    });
-
-    if (!err1) {
-        // تنفيذ الإضافة
-        if (destBank.dbId) {
-            await updateData('treasury_balances', destBank.dbId, {
-                amount: Number(destBank.amount) + amount
-            });
-        } else {
-            await insertData('treasury_balances', {
-                name: destBank.name,
-                amount: amount,
-                user_id: currentUser ? currentUser.id : null
-            });
-        }
-        
-        setToast({ show: true, message: (off1) ? 'تم التحويل (وضع عدم الاتصال)' : 'تم التحويل بنجاح', type: 'success' });
-        setShowTransferModal(false);
-        setTransferData({ ...transferData, amount: '' });
-        loadData(currentUser?.id);
-    } else {
-        setToast({ show: true, message: 'فشلت عملية التحويل', type: 'error' });
-    }
-
-    setLoading(false);
-  };
-
-  const isTransferLocked = getAdminSettings().restrictedFeatures['bank-transfer'] && !currentUser?.is_pro;
-
   return (
     <div className="h-screen flex flex-col bg-[#FFF9C4] overflow-hidden font-sans relative">
       <Toast 
@@ -231,22 +151,6 @@ export const TreasuryScreen = ({ onBack, currentUser, onOpenPro }) => {
         {/* Action Buttons */}
         <div className="flex flex-col gap-3 mt-4">
             <button 
-                onClick={handleTransferClick}
-                className="bg-white p-4 rounded-2xl shadow-sm border border-gray-100 flex items-center justify-between group active:scale-[0.98] transition-all relative overflow-hidden"
-            >
-                <div className="flex items-center gap-4">
-                    <div className="w-12 h-12 rounded-xl bg-blue-50 text-blue-600 flex items-center justify-center">
-                        <ArrowLeftRight size={24} strokeWidth={2.5} />
-                    </div>
-                    <span className="font-bold text-gray-800 text-lg">تحويل بين البنوك</span>
-                </div>
-                <div className="flex items-center gap-2">
-                   {isTransferLocked && <Lock size={20} className="text-red-500" />}
-                   <ArrowRight size={20} className="text-gray-300 rotate-180" />
-                </div>
-            </button>
-
-            <button 
                 onClick={() => setShowZeroConfirm(true)}
                 className="bg-white p-4 rounded-2xl shadow-sm border border-gray-100 flex items-center justify-between group active:scale-[0.98] transition-all"
             >
@@ -261,83 +165,6 @@ export const TreasuryScreen = ({ onBack, currentUser, onOpenPro }) => {
         </div>
 
       </div>
-
-      {/* Transfer Modal */}
-      {showTransferModal && (
-        <div className="fixed inset-0 z-50 flex items-center justify-center p-4">
-          <div className="absolute inset-0 bg-black/50 backdrop-blur-sm" onClick={() => setShowTransferModal(false)} />
-          <div className="bg-white w-full max-w-sm rounded-3xl shadow-2xl overflow-hidden relative z-10 animate-in zoom-in duration-200">
-            <div className="bg-[#00695c] text-white p-4 flex justify-between items-center">
-              <h2 className="text-lg font-bold flex items-center gap-2">
-                <ArrowLeftRight size={24} /> تحويل رصيد
-              </h2>
-              <button onClick={() => setShowTransferModal(false)} className="p-1 hover:bg-white/20 rounded-full">
-                <X size={24} />
-              </button>
-            </div>
-
-            <form onSubmit={handleTransfer} className="p-5 flex flex-col gap-4">
-              <div>
-                <label className="block text-[#00695c] text-xs font-bold mb-1 text-right px-1">من حساب (المصدر)</label>
-                <div className="relative">
-                    <select
-                        value={transferData.fromBank}
-                        onChange={(e) => setTransferData({ ...transferData, fromBank: e.target.value })}
-                        className="w-full h-12 px-4 rounded-xl border-2 border-[#00695c] focus:outline-none focus:ring-2 focus:ring-[#00695c]/50 text-right font-medium bg-white appearance-none"
-                    >
-                        {treasuryData.map(b => <option key={b.id} value={b.name}>{b.name} ({Number(b.amount).toLocaleString()})</option>)}
-                    </select>
-                    <div className="absolute left-3 top-1/2 -translate-y-1/2 text-gray-400 pointer-events-none">
-                        <AlertCircle size={16} className="rotate-180" />
-                    </div>
-                </div>
-              </div>
-
-              <div className="flex justify-center -my-2 relative z-10">
-                  <div className="bg-gray-100 p-2 rounded-full border-2 border-white">
-                      <ArrowLeftRight size={20} className="text-gray-400 rotate-90" />
-                  </div>
-              </div>
-
-              <div>
-                <label className="block text-[#00695c] text-xs font-bold mb-1 text-right px-1">إلى حساب (المستلم)</label>
-                <div className="relative">
-                    <select
-                        value={transferData.toBank}
-                        onChange={(e) => setTransferData({ ...transferData, toBank: e.target.value })}
-                        className="w-full h-12 px-4 rounded-xl border-2 border-[#00695c] focus:outline-none focus:ring-2 focus:ring-[#00695c]/50 text-right font-medium bg-white appearance-none"
-                    >
-                        {treasuryData.map(b => <option key={b.id} value={b.name}>{b.name}</option>)}
-                    </select>
-                    <div className="absolute left-3 top-1/2 -translate-y-1/2 text-gray-400 pointer-events-none">
-                        <AlertCircle size={16} className="rotate-180" />
-                    </div>
-                </div>
-              </div>
-
-              <div>
-                <label className="block text-[#00695c] text-xs font-bold mb-1 text-right px-1">المبلغ المراد تحويله</label>
-                <input
-                  type="number"
-                  value={transferData.amount}
-                  onChange={(e) => setTransferData({ ...transferData, amount: e.target.value })}
-                  placeholder="0.00"
-                  className="w-full h-12 px-4 rounded-xl border-2 border-[#00695c] focus:outline-none focus:ring-2 focus:ring-[#00695c]/50 text-right font-bold text-lg placeholder-gray-400"
-                />
-              </div>
-
-              <button 
-                type="submit" 
-                disabled={loading}
-                className="w-full bg-[#00695c] text-white h-14 rounded-xl font-bold text-lg shadow-md hover:bg-[#005c4b] flex items-center justify-center gap-2 mt-2"
-              >
-                <RefreshCw size={24} className={loading ? 'animate-spin' : ''} />
-                <span>{loading ? 'جاري التحويل...' : 'تأكيد التحويل'}</span>
-              </button>
-            </form>
-          </div>
-        </div>
-      )}
     </div>
   );
 };
