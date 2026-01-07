@@ -33,7 +33,7 @@ export const DashboardCard = ({ title, value, icon: Icon, color, onClick, childr
         </p>
       )}
       
-      {/* أزرار إضافية (مثل زر الإضافة) */}
+      {/* أزرار إضافية */}
       {children && (
         <div 
           className="mt-2 w-full flex justify-center" 
