@@ -21,6 +21,8 @@ import { CustomersScreen } from './screens/CustomersScreen';
 import { PurchasesScreen } from './screens/PurchasesScreen';
 import { FinalReportsScreen } from './screens/FinalReportsScreen';
 import { DebtsScreen } from './screens/DebtsScreen';
+import { AdminLoginModal } from './components/AdminLoginModal';
+import { AdminDashboardScreen } from './screens/AdminDashboardScreen';
 import { playSound } from './utils/soundManager';
 import { syncData } from './lib/dataService'; 
 
@@ -28,6 +30,7 @@ function App() {
   const [currentScreen, setCurrentScreen] = useState('dashboard');
   const [isCalculatorOpen, setIsCalculatorOpen] = useState(false);
   const [isAuthOpen, setIsAuthOpen] = useState(false);
+  const [isAdminLoginOpen, setIsAdminLoginOpen] = useState(false);
   const [authTriggerMessage, setAuthTriggerMessage] = useState('');
   const [currentUser, setCurrentUser] = useState(null);
 
@@ -118,6 +121,7 @@ function App() {
       case 'wholesalers': return <WholesalersScreen onBack={() => setCurrentScreen('dashboard')} currentUser={currentUser} />;
       case 'customers': return <CustomersScreen onBack={() => setCurrentScreen('dashboard')} currentUser={currentUser} />;
       case 'debts': return <DebtsScreen onBack={() => setCurrentScreen('dashboard')} currentUser={currentUser} />;
+      case 'admin-dashboard': return <AdminDashboardScreen onBack={() => setCurrentScreen('dashboard')} />;
       default: return (
         <main className="flex-1 w-full max-w-md mx-auto py-6 px-4 pb-20">
           <div className="grid grid-cols-2 gap-5 content-start">
@@ -151,11 +155,18 @@ function App() {
         triggerMessage={authTriggerMessage}
       />
 
+      <AdminLoginModal
+        isOpen={isAdminLoginOpen}
+        onClose={() => setIsAdminLoginOpen(false)}
+        onLogin={() => setCurrentScreen('admin-dashboard')}
+      />
+
       <TopBar 
         onOpenRegistration={() => handleOpenRegistration()} 
         onNavigate={handleNavigation}
         currentUser={currentUser}
         onLogout={handleLogout}
+        onOpenAdmin={() => setIsAdminLoginOpen(true)}
       />
 
       {renderScreen()}

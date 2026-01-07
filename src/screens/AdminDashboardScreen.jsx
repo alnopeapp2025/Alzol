@@ -1,61 +1,42 @@
-import React, { useState } from 'react';
-import { ArrowRight, Save, Shield, Database, Layout, Lock, Activity } from 'lucide-react';
+import React, { useState, useEffect } from 'react';
+import { ArrowRight, Save, Shield, Activity, Lock, Unlock, Database } from 'lucide-react';
 import { getAdminSettings, saveAdminSettings } from '../lib/adminSettings';
 import { Toast } from '../components/Toast';
 
 export const AdminDashboardScreen = ({ onBack }) => {
   const [settings, setSettings] = useState(getAdminSettings());
-  const [activeTab, setActiveTab] = useState('plans'); // plans, features, security
-  const [toast, setToast] = useState({ show: false, message: '' });
+  const [showToast, setShowToast] = useState(false);
+
+  const handleToggle = (key) => {
+    setSettings(prev => ({ ...prev, [key]: !prev[key] }));
+  };
 
   const handleSave = () => {
     saveAdminSettings(settings);
-    setToast({ show: true, message: 'تم حفظ إعدادات النظام بنجاح' });
+    setShowToast(true);
+    setTimeout(() => setShowToast(false), 1500);
   };
 
-  const handlePlanChange = (plan, field, value) => {
-    setSettings(prev => ({
-      ...prev,
-      plans: {
-        ...prev.plans,
-        [plan]: {
-          ...prev.plans[plan],
-          [field]: Number(value)
-        }
-      }
-    }));
-  };
-
-  const toggleFeature = (featureKey) => {
-    setSettings(prev => ({
-      ...prev,
-      restrictedFeatures: {
-        ...prev.restrictedFeatures,
-        [featureKey]: !prev.restrictedFeatures[featureKey]
-      }
-    }));
-  };
-
-  const TabButton = ({ id, label, icon: Icon }) => (
-    <button
-      onClick={() => setActiveTab(id)}
-      className={`flex-1 py-3 flex flex-col items-center justify-center gap-1 transition-colors border-b-4 ${
-        activeTab === id 
-          ? 'border-red-600 text-red-600 bg-red-50' 
-          : 'border-transparent text-gray-500 hover:bg-gray-50'
-      }`}
-    >
-      <Icon size={20} />
-      <span className="text-xs font-bold">{label}</span>
-    </button>
+  const ToggleItem = ({ label, checked, onChange, icon: Icon }) => (
+    <div className="bg-gray-800 p-4 rounded-xl border border-gray-700 flex items-center justify-between">
+      <div className="flex items-center gap-3 text-gray-200">
+        <div className={`p-2 rounded-lg ${checked ? 'bg-green-500/20 text-green-400' : 'bg-red-500/20 text-red-400'}`}>
+          <Icon size={20} />
+        </div>
+        <span className="font-bold">{label}</span>
+      </div>
+      <button 
+        onClick={onChange}
+        className={`w-12 h-6 rounded-full p-1 transition-colors ${checked ? 'bg-green-500' : 'bg-gray-600'}`}
+      >
+        <div className={`w-4 h-4 bg-white rounded-full transition-transform ${checked ? '-translate-x-6' : 'translate-x-0'}`} />
+      </button>
+    </div>
   );
 
   return (
-    <div className="h-screen flex flex-col bg-gray-50 overflow-hidden font-sans">
-      <Toast message={toast.message} isVisible={toast.show} onClose={() => setToast({ ...toast, show: false })} />
-
-      {/* Header */}
-      <div className="bg-gray-900 text-white h-16 flex items-center px-4 shadow-lg shrink-0 z-10">
+    <div className="h-screen flex flex-col bg-gray-900 text-white overflow-hidden font-sans">
+      <div className="bg-gray-800 h-16 flex items-center px-4 shadow-lg shrink-0 border-b border-gray-700">
         <button onClick={onBack} className="p-2 hover:bg-gray-700 rounded-xl transition-colors">
           <ArrowRight size={24} />
         </button>
@@ -63,169 +44,69 @@ export const AdminDashboardScreen = ({ onBack }) => {
           <Shield size={20} className="text-red-500" />
           لوحة تحكم المدير
         </h1>
-        <button onClick={handleSave} className="p-2 bg-red-600 hover:bg-red-700 rounded-xl transition-colors shadow-md active:scale-95">
-          <Save size={20} />
-        </button>
       </div>
 
-      {/* Tabs */}
-      <div className="flex bg-white shadow-sm shrink-0">
-        <TabButton id="plans" label="باقات الاشتراك" icon={Database} />
-        <TabButton id="features" label="التحكم بالعناصر" icon={Layout} />
-        <TabButton id="security" label="الأمان والدخول" icon={Lock} />
-      </div>
-
-      {/* Content */}
-      <div className="flex-1 overflow-y-auto p-4 pb-20">
+      <div className="flex-1 overflow-y-auto p-4 space-y-6">
         
-        {/* PLANS TAB */}
-        {activeTab === 'plans' && (
-          <div className="flex flex-col gap-4">
-            <div className="bg-blue-50 border border-blue-200 rounded-xl p-4 flex items-start gap-3">
-              <Activity className="text-blue-600 shrink-0 mt-1" size={20} />
-              <p className="text-blue-800 text-sm font-medium">
-                هنا يمكنك تحديد الحدود القصوى لكل باقة يدوياً. سيتم تطبيق هذه القيود على المستخدمين بناءً على نوع اشتراكهم.
-              </p>
-            </div>
+        <div className="space-y-3">
+          <h3 className="text-gray-400 text-sm font-bold px-1">التحكم بالصلاحيات والعناصر</h3>
+          <ToggleItem 
+            label="تفعيل قسم المبيعات" 
+            checked={settings.enable_sales} 
+            onChange={() => handleToggle('enable_sales')}
+            icon={Activity}
+          />
+          <ToggleItem 
+            label="تفعيل قسم المصروفات" 
+            checked={settings.enable_expenses} 
+            onChange={() => handleToggle('enable_expenses')}
+            icon={Activity}
+          />
+          <ToggleItem 
+            label="تفعيل قسم الخزينة" 
+            checked={settings.enable_treasury} 
+            onChange={() => handleToggle('enable_treasury')}
+            icon={Activity}
+          />
+          <ToggleItem 
+            label="تفعيل التقارير" 
+            checked={settings.enable_reports} 
+            onChange={() => handleToggle('enable_reports')}
+            icon={Activity}
+          />
+        </div>
 
-            {Object.entries(settings.plans).map(([key, plan]) => (
-              <div key={key} className="bg-white rounded-2xl p-5 shadow-sm border border-gray-200">
-                <div className="flex items-center justify-between mb-4 border-b border-gray-100 pb-2">
-                  <h3 className="font-bold text-lg text-gray-800">{plan.label}</h3>
-                  <span className="text-xs font-bold px-2 py-1 bg-gray-100 rounded text-gray-500 uppercase">{key}</span>
-                </div>
-                
-                <div className="grid grid-cols-2 gap-4">
-                  <div>
-                    <label className="block text-gray-500 text-xs font-bold mb-1">الحد الأقصى للمنتجات</label>
-                    <input
-                      type="number"
-                      value={plan.maxProducts}
-                      onChange={(e) => handlePlanChange(key, 'maxProducts', e.target.value)}
-                      className="w-full h-10 px-3 rounded-lg border border-gray-300 focus:border-red-500 focus:outline-none text-center font-bold dir-ltr"
-                    />
-                  </div>
-                  <div>
-                    <label className="block text-gray-500 text-xs font-bold mb-1">الحد الأقصى للأصناف</label>
-                    <input
-                      type="number"
-                      value={plan.maxCategories || plan.maxInvoices} 
-                      onChange={(e) => handlePlanChange(key, 'maxCategories', e.target.value)}
-                      className="w-full h-10 px-3 rounded-lg border border-gray-300 focus:border-red-500 focus:outline-none text-center font-bold dir-ltr"
-                    />
-                  </div>
-                </div>
-              </div>
-            ))}
-          </div>
-        )}
+        <div className="space-y-3">
+            <h3 className="text-gray-400 text-sm font-bold px-1">إعدادات متقدمة</h3>
+            <ToggleItem 
+                label="السماح بالتحويل البنكي" 
+                checked={settings.allow_bank_transfer} 
+                onChange={() => handleToggle('allow_bank_transfer')}
+                icon={Database}
+            />
+            <ToggleItem 
+                label="السماح بالنسخ الاحتياطي" 
+                checked={settings.allow_backup} 
+                onChange={() => handleToggle('allow_backup')}
+                icon={Database}
+            />
+        </div>
 
-        {/* FEATURES TAB */}
-        {activeTab === 'features' && (
-          <div className="flex flex-col gap-4">
-            <div className="bg-orange-50 border border-orange-200 rounded-xl p-4 flex items-start gap-3">
-              <Layout className="text-orange-600 shrink-0 mt-1" size={20} />
-              <p className="text-orange-800 text-sm font-medium">
-                حدد العناصر التي تتطلب اشتراكاً (Pro). عند تفعيل القفل، لن تظهر هذه العناصر للمستخدمين في باقة الزوار أو المسجلين (حسب الإعدادات).
-              </p>
-            </div>
-
-            <div className="bg-white rounded-2xl shadow-sm border border-gray-200 overflow-hidden">
-              {[
-                { id: 'products', label: 'المنتجات' },
-                { id: 'categories', label: 'الأصناف' },
-                { id: 'sales', label: 'المبيعات' },
-                { id: 'purchases', label: 'المشتريات' },
-                { id: 'treasury', label: 'الخزينة' },
-                { id: 'expenses', label: 'المصروفات' },
-                { id: 'customers', label: 'العملاء' },
-                { id: 'wholesalers', label: 'تجار الجملة' },
-                { id: 'workers', label: 'العمال والرواتب' },
-                { id: 'debts', label: 'الديون' },
-                { id: 'inventory-reports', label: 'تقارير المخزن' },
-                { id: 'final-reports', label: 'التقارير النهائية' },
-                { id: 'calculator', label: 'الآلة الحاسبة' },
-                { id: 'settings', label: 'الإعدادات' },
-                { id: 'system-data', label: 'إدارة البيانات' },
-                { id: 'bank-transfer', label: 'تحويل بين البنوك' },
-                { id: 'create-backup', label: 'إنشاء نسخة احتياطية' }
-              ].map((item) => (
-                <div key={item.id} className="flex items-center justify-between p-4 border-b border-gray-100 last:border-0 hover:bg-gray-50">
-                  <span className="font-bold text-gray-700">{item.label}</span>
-                  <button
-                    onClick={() => toggleFeature(item.id)}
-                    className={`w-14 h-8 rounded-full p-1 transition-colors duration-300 ${
-                      settings.restrictedFeatures[item.id] ? 'bg-red-500' : 'bg-gray-300'
-                    }`}
-                  >
-                    <div className={`w-6 h-6 bg-white rounded-full shadow-md transform transition-transform duration-300 flex items-center justify-center ${
-                      settings.restrictedFeatures[item.id] ? '-translate-x-6' : 'translate-x-0'
-                    }`}>
-                      {settings.restrictedFeatures[item.id] && <Lock size={12} className="text-red-500" />}
-                    </div>
-                  </button>
-                </div>
-              ))}
-            </div>
-          </div>
-        )}
-
-        {/* SECURITY TAB */}
-        {activeTab === 'security' && (
-          <div className="flex flex-col gap-4">
-            <div className="bg-white rounded-2xl p-5 shadow-sm border border-gray-200">
-              <h3 className="font-bold text-lg text-gray-800 mb-4 border-b pb-2">بيانات دخول المدير</h3>
-              
-              <div className="space-y-4">
-                <div>
-                  <label className="block text-gray-500 text-xs font-bold mb-1">اسم المستخدم</label>
-                  <input
-                    type="text"
-                    value={settings.credentials.username}
-                    onChange={(e) => setSettings({...settings, credentials: {...settings.credentials, username: e.target.value}})}
-                    className="w-full h-10 px-3 rounded-lg border border-gray-300 focus:border-red-500 focus:outline-none text-right font-bold"
-                  />
-                </div>
-                <div>
-                  <label className="block text-gray-500 text-xs font-bold mb-1">كلمة المرور</label>
-                  <input
-                    type="text"
-                    value={settings.credentials.password}
-                    onChange={(e) => setSettings({...settings, credentials: {...settings.credentials, password: e.target.value}})}
-                    className="w-full h-10 px-3 rounded-lg border border-gray-300 focus:border-red-500 focus:outline-none text-right font-bold"
-                  />
-                </div>
-              </div>
-            </div>
-
-            <div className="bg-white rounded-2xl p-5 shadow-sm border border-gray-200">
-              <h3 className="font-bold text-lg text-gray-800 mb-4 border-b pb-2">استعادة الحساب (سؤال الأمان)</h3>
-              
-              <div className="space-y-4">
-                <div>
-                  <label className="block text-gray-500 text-xs font-bold mb-1">سؤال الأمان</label>
-                  <input
-                    type="text"
-                    value={settings.credentials.securityQuestion}
-                    onChange={(e) => setSettings({...settings, credentials: {...settings.credentials, securityQuestion: e.target.value}})}
-                    className="w-full h-10 px-3 rounded-lg border border-gray-300 focus:border-red-500 focus:outline-none text-right font-bold"
-                  />
-                </div>
-                <div>
-                  <label className="block text-gray-500 text-xs font-bold mb-1">الإجابة الأمنية</label>
-                  <input
-                    type="text"
-                    value={settings.credentials.securityAnswer}
-                    onChange={(e) => setSettings({...settings, credentials: {...settings.credentials, securityAnswer: e.target.value}})}
-                    className="w-full h-10 px-3 rounded-lg border border-gray-300 focus:border-red-500 focus:outline-none text-right font-bold"
-                  />
-                </div>
-              </div>
-            </div>
-          </div>
-        )}
+        <button 
+          onClick={handleSave}
+          className="w-full bg-red-600 hover:bg-red-700 text-white h-14 rounded-xl font-bold text-lg shadow-lg flex items-center justify-center gap-2 mt-4 transition-all active:scale-95"
+        >
+          <Save size={24} />
+          حفظ الإعدادات
+        </button>
 
       </div>
+
+      {showToast && (
+        <div className="fixed bottom-6 left-1/2 -translate-x-1/2 bg-green-600 text-white px-6 py-3 rounded-xl shadow-xl font-bold animate-in slide-in-from-bottom">
+          تم حفظ الإعدادات بنجاح
+        </div>
+      )}
     </div>
   );
 };

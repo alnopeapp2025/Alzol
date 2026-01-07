@@ -1,12 +1,31 @@
-import React, { useState } from 'react';
+import React, { useState, useRef } from 'react';
 import { Menu, Edit, LogOut, LogIn } from 'lucide-react';
 import { SideMenu } from './SideMenu';
 import { playSound } from '../utils/soundManager';
 import { motion, AnimatePresence } from 'framer-motion';
 
-export const TopBar = ({ onOpenRegistration, onNavigate, currentUser, onLogout }) => {
+export const TopBar = ({ onOpenRegistration, onNavigate, currentUser, onLogout, onOpenAdmin }) => {
   const [isMenuOpen, setIsMenuOpen] = useState(false);
   const [isUserMenuOpen, setIsUserMenuOpen] = useState(false);
+  
+  // Long Press Logic
+  const timerRef = useRef(null);
+
+  const handleTouchStart = () => {
+    timerRef.current = setTimeout(() => {
+      if (onOpenAdmin) {
+        playSound('click');
+        onOpenAdmin();
+      }
+    }, 2000); // 2 seconds long press
+  };
+
+  const handleTouchEnd = () => {
+    if (timerRef.current) {
+      clearTimeout(timerRef.current);
+      timerRef.current = null;
+    }
+  };
 
   const handleMenuClick = () => {
     playSound('click');
@@ -46,8 +65,15 @@ export const TopBar = ({ onOpenRegistration, onNavigate, currentUser, onLogout }
           <Menu size={28} strokeWidth={2} />
         </button>
 
-        {/* Center - Title */}
-        <h1 className="text-xl font-bold flex-1 text-center mx-2 truncate drop-shadow-md">
+        {/* Center - Title with Long Press */}
+        <h1 
+          className="text-xl font-bold flex-1 text-center mx-2 truncate drop-shadow-md select-none cursor-pointer active:opacity-80"
+          onTouchStart={handleTouchStart}
+          onTouchEnd={handleTouchEnd}
+          onMouseDown={handleTouchStart}
+          onMouseUp={handleTouchEnd}
+          onMouseLeave={handleTouchEnd}
+        >
           مخزنك
         </h1>
 
@@ -66,12 +92,10 @@ export const TopBar = ({ onOpenRegistration, onNavigate, currentUser, onLogout }
                 />
               </button>
               
-              {/* Welcome Text */}
               <span className="absolute -bottom-5 w-max text-[10px] text-red-200 font-light tracking-wide bg-[#00695c]/90 px-2 py-0.5 rounded-md shadow-sm whitespace-nowrap z-0">
                 مرحباً: {currentUser.username}
               </span>
               
-              {/* User Dropdown */}
               <AnimatePresence>
                 {isUserMenuOpen && (
                   <>
